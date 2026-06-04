@@ -1,0 +1,55 @@
+{
+  "empresa": "Verta S.A.",
+  "geradoEm": "2026-06-04T23:09:12.190Z",
+  "seed": 42,
+  "janela": {
+    "inicio": "2023-01",
+    "fim": "2024-12",
+    "meses": 24
+  },
+  "totalDesligamentos": 562,
+  "diretorias": [
+    {
+      "diretoria": "Tecnologia",
+      "totalDesligamentos": 287,
+      "taxaMediaMensal": 4.39,
+      "headcountFinal": 295,
+      "consistente": true
+    },
+    {
+      "diretoria": "Distribuição & Assessoria",
+      "totalDesligamentos": 101,
+      "taxaMediaMensal": 2.22,
+      "headcountFinal": 200,
+      "consistente": true
+    },
+    {
+      "diretoria": "Operações",
+      "totalDesligamentos": 77,
+      "taxaMediaMensal": 1.95,
+      "headcountFinal": 170,
+      "consistente": true
+    },
+    {
+      "diretoria": "Financeiro & Risco",
+      "totalDesligamentos": 34,
+      "taxaMediaMensal": 1.1,
+      "headcountFinal": 136,
+      "consistente": true
+    },
+    {
+      "diretoria": "Gente",
+      "totalDesligamentos": 24,
+      "taxaMediaMensal": 1.15,
+      "headcountFinal": 95,
+      "consistente": true
+    },
+    {
+      "diretoria": "Produtos & Plataforma",
+      "totalDesligamentos": 39,
+      "taxaMediaMensal": 1.41,
+      "headcountFinal": 122,
+      "consistente": true
+    }
+  ]
+}

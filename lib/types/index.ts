@@ -1,62 +1,80 @@
-/* ─── Contratos de dados — Dashboard Conversacional ─────────────────────────
+/* ─── Contratos de dados — Dashboard Conversacional (Verta S.A.) ─────────────
  *
- * Estes tipos são a fonte de verdade para o shape de todos os dados que
- * trafegam na aplicação: do JSON estático → funções de cálculo → gráficos
- * → serverless function de chat. Qualquer mudança no dataset deve se
- * refletir aqui primeiro.
+ * Fonte de verdade para todos os shapes que trafegam na aplicação:
+ * dataset estático → funções de cálculo → gráficos → chat (function calling).
  *
- * Referência: LUC-159
+ * Referências: LUC-159, LUC-161
  * ──────────────────────────────────────────────────────────────────────────── */
 
-// ─── Enumerações ────────────────────────────────────────────────────────────
+// ─── Enumerações ─────────────────────────────────────────────────────────────
 
 export type Diretoria =
   | 'Tecnologia'
-  | 'Comercial'
+  | 'Distribuição & Assessoria'
   | 'Operações'
-  | 'Financeiro'
-  | 'RH'
-  | 'Marketing'
+  | 'Financeiro & Risco'
+  | 'Gente'
+  | 'Produtos & Plataforma'
   | 'Geral'; // visão consolidada da empresa
 
+export type Senioridade    = 'júnior' | 'pleno' | 'sênior' | 'gerência' | 'diretoria';
+export type PosicionamentoFaixa = 'piso' | 'q1' | 'mediana' | 'q3' | 'teto';
+export type ClusterLideranca = 'contribuidor individual' | 'líder de CI' | 'líder de líderes';
 export type TipoDesligamento = 'voluntário' | 'involuntário';
-
-export type MotivoDesligamento =
-  | 'remuneração'
-  | 'carreira'
-  | 'cultura'
-  | 'performance'
-  | 'pessoal'
-  | 'outro';
-
-export type FaixaSalarial = 'júnior' | 'pleno' | 'sênior' | 'gerência' | 'diretoria';
-
+export type MotivoDesligamento = 'remuneração' | 'carreira' | 'cultura' | 'performance' | 'pessoal' | 'outro';
 export type NivelPerformance = 'abaixo' | 'dentro' | 'acima';
-
+export type TendenciaPerformance = 'melhorando' | 'estável' | 'piorando';
 export type NivelSatisfacao = 'baixo' | 'médio' | 'alto';
-
+export type ModalidadeTrabalho = 'presencial' | 'híbrido' | 'remoto';
 export type Periodo = '3m' | '6m' | '12m' | 'q1' | 'q2' | 'q3' | 'q4';
 
-// ─── Registro de funcionário/evento ─────────────────────────────────────────
+// ─── Registro de desligamento (dataset bruto) ────────────────────────────────
 
-/** Registro de desligamento individual — fonte de verdade do dataset */
+/** Um evento de desligamento — shape exato do lib/data/desligamentos.json */
 export interface RegistroDesligamento {
   id: string;
-  mes: string; // formato: "YYYY-MM"
+  mes: string; // "YYYY-MM"
+
+  // Estrutura
   diretoria: Diretoria;
+  especialidade: string;
+  diretor: string;
+  superintendente: string;
+
+  // Pessoa
   cargo: string;
-  faixaSalarial: FaixaSalarial;
+  senioridade: Senioridade;
+  clusterLideranca: ClusterLideranca;
+  eSocio: boolean;
+  modalidadeTrabalho: ModalidadeTrabalho;
+
+  // Remuneração
   salarioBRL: number;
+  posicionamentoFaixa: PosicionamentoFaixa;
+
+  // Tempo / trajetória
   tempoEmpresaMeses: number;
+  tempoNoCargaMeses: number;
+  tempoDesdePromocaoMeses: number;
+  tempoDesdeAumentoMeses: number;
+  trocasDeLiderUltimos12Meses: number;
+
+  // Desempenho / clima
   nivelPerformance: NivelPerformance;
+  tendenciaPerformance: TendenciaPerformance;
   nivelSatisfacao: NivelSatisfacao;
+  npsInterno: number; // 0–10
+
+  // Desligamento
   tipoDesligamento: TipoDesligamento;
   motivoDesligamento: MotivoDesligamento;
 }
 
-/** Registro de headcount mensal por diretoria */
+// ─── Headcount mensal ────────────────────────────────────────────────────────
+
+/** Shape exato do lib/data/headcount.json */
 export interface HeadcountMensal {
-  mes: string; // formato: "YYYY-MM"
+  mes: string;
   diretoria: Diretoria;
   headcountInicio: number;
   admissoes: number;
@@ -64,94 +82,111 @@ export interface HeadcountMensal {
   headcountFim: number;
 }
 
-// ─── Série temporal agregada ─────────────────────────────────────────────────
+// ─── Resultados das funções de cálculo ───────────────────────────────────────
 
-/** Ponto de dados mensal para um gráfico de série temporal */
-export interface PontoSerieTemporal {
-  mes: string; // formato: "YYYY-MM" — também usado como label "Jan/24"
-  taxaTurnover: number; // % mensal
+/** Ponto de dados numa série temporal */
+export interface PontoSerie {
+  mes: string; // "YYYY-MM"
+  label: string; // "Jan/23"
+  taxa: number; // % mensal
   desligamentos: number;
   admissoes: number;
   headcount: number;
 }
 
-/** Dados agregados por diretoria em um período */
-export interface DadosDiretoria {
-  diretoria: Diretoria;
-  taxaTurnover: number;
-  desligamentos: number;
-  headcountMedio: number;
-  variacaoMoM: number; // diferença em pp vs. mês anterior
-  variacaoYoY: number; // diferença em pp vs. mesmo período do ano anterior
-}
-
-// ─── Resultado de funções de cálculo ────────────────────────────────────────
-
-/** Resultado de getTurnoverRate */
+/** getTurnoverRate → resultado com contexto de meta */
 export interface ResultadoTurnover {
-  taxa: number; // % no período
+  taxa: number;
   desligamentos: number;
   headcountMedio: number;
-  meta: number; // benchmark configurado
+  meta: number;
   status: 'good' | 'bad' | 'warn';
-  statusLabel: string;
+  statusLabel: string; // "Acima da meta", "Dentro da meta", etc.
 }
 
-/** Resultado de getTrend */
+/** getTrend → resultado completo com MoM, YoY e série */
 export interface ResultadoTendencia {
   taxaAtual: number;
-  variacaoMoM: number; // pp vs. mês anterior
-  variacaoYoY: number; // pp vs. mesmo período do ano anterior
+  taxaPeriodoAnterior: number | null;
+  taxaMesmoPeriodoAnoAnterior: number | null;
+  variacaoMoM: number | null; // pp
+  variacaoYoY: number | null; // pp
   direcao: 'subindo' | 'caindo' | 'estável';
-  serie: PontoSerieTemporal[];
+  mesDaVirada: string | null; // quando começou a escalada
+  serie: PontoSerie[];
 }
 
-/** Resultado de getProjection */
+/** getProjection → série histórica + projeção */
 export interface ResultadoProjecao {
-  projecaoProximo3Meses: number; // % projetado
+  taxaProjetadaProximo3Meses: number;
   metodologia: string;
-  serieHistorica: PontoSerieTemporal[];
-  serieProjetada: Array<{ mes: string; taxaProjetada: number }>;
+  serieHistorica: PontoSerie[];
+  serieProjetada: Array<{ mes: string; label: string; taxaProjetada: number }>;
 }
 
-/** Resultado de rankDiretoriasByTurnover */
+/** rankDiretoriasByTurnover → ranking com contexto */
+export interface ItemRanking {
+  diretoria: Diretoria;
+  taxa: number;
+  desligamentos: number;
+  headcountMedio: number;
+  variacaoMoM: number | null;
+  status: 'good' | 'bad' | 'warn';
+}
+
 export interface ResultadoRanking {
-  ranking: DadosDiretoria[];
+  ranking: ItemRanking[];
   periodo: string;
 }
 
-/** Resultado de breakdownByDimension */
+/** breakdownByDimension → análise por dimensão */
+export type DimensaoBreakdown =
+  | 'posicionamentoFaixa'
+  | 'nivelPerformance'
+  | 'senioridade'
+  | 'clusterLideranca'
+  | 'tipoDesligamento'
+  | 'motivoDesligamento'
+  | 'modalidadeTrabalho'
+  | 'tendenciaPerformance'
+  | 'nivelSatisfacao'
+  | 'especialidade'
+  | 'cargo';
+
+export interface ItemBreakdown {
+  label: string;
+  desligamentos: number;
+  percentual: number;
+  taxaTurnover?: number;
+  salarioMedioAteSaida?: number;
+  tempoMedioDesdeAumento?: number;
+  npsInterno?: number;
+}
+
 export interface ResultadoBreakdown {
-  dimensao: string;
-  itens: Array<{
-    label: string;
-    taxaTurnover: number;
-    desligamentos: number;
-    headcount: number;
-  }>;
+  dimensao: DimensaoBreakdown;
+  diretoria: Diretoria;
+  periodo: string;
+  totalDesligamentos: number;
+  itens: ItemBreakdown[];
 }
 
 // ─── Insights pré-gerados ────────────────────────────────────────────────────
 
-/** Chave de lookup para o JSON de insights pré-gerados */
-export interface ChaveInsight {
-  periodo: Periodo;
-  diretoria: Diretoria;
-}
-
 /** Insight pré-gerado para uma combinação periodo × diretoria */
 export interface InsightPreGerado {
-  manchete: string; // frase executiva de abertura
+  manchete: string; // frase executiva principal
   titulos: {
     graficoPrincipal: string;
     graficoRanking: string;
     graficoTendencia: string;
   };
-  geradoEm: string; // ISO timestamp da geração
+  geradoEm: string; // ISO timestamp
 }
 
-/** Índice completo de insights — JSON estático no app */
-export type IndiceInsights = Record<string, InsightPreGerado>; // key: `${periodo}:${diretoria}`
+/** Índice de insights — lib/data/insights.json
+ *  Chave: `${periodo}:${diretoria}` */
+export type IndiceInsights = Record<string, InsightPreGerado>;
 
 // ─── Chat conversacional ─────────────────────────────────────────────────────
 
@@ -161,17 +196,17 @@ export interface MensagemChat {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  grafico?: EspecificacaoGrafico; // gráfico sugerido pela IA na resposta
+  grafico?: EspecificacaoGrafico;
 }
 
-/** Especificação de gráfico que a IA retorna junto com a resposta */
+/** Especificação do gráfico que a IA retorna junto com a resposta */
 export interface EspecificacaoGrafico {
-  tipo: 'linha' | 'barra' | 'area' | 'pie';
+  tipo: 'linha' | 'area' | 'barra' | 'barraHorizontal' | 'pie';
   titulo: string;
-  dados: unknown; // tipado conforme o componente de gráfico que o renderiza
+  dados: unknown; // tipado pelo componente de renderização
 }
 
-/** Contexto do filtro ativo — passado à serverless function de chat */
+/** Estado do filtro ativo — compartilhado entre dashboard e chat */
 export interface ContextoFiltro {
   periodo: Periodo;
   diretoria: Diretoria;
