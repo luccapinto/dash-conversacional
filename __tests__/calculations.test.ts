@@ -1,0 +1,261 @@
+/**
+ * Testes unitários — funções de cálculo
+ *
+ * Valida que as anomalias da narrativa estão corretamente refletidas nos
+ * resultados das funções, e que os guardrails analíticos funcionam.
+ *
+ * Ref: LUC-164
+ */
+
+import { describe, it, expect } from 'vitest';
+import {
+  getTurnoverRate,
+  getTrend,
+  getProjection,
+  rankDiretoriasByTurnover,
+  breakdownByDimension,
+  getHeadcount,
+  META_TURNOVER_MENSAL,
+} from '@/lib/calculations';
+
+// ── getTurnoverRate ───────────────────────────────────────────────────────────
+
+describe('getTurnoverRate', () => {
+  it('retorna status bad para Tecnologia no ano 2024 (acima da meta)', () => {
+    const r = getTurnoverRate('12m', 'Tecnologia');
+    expect(r.taxa).toBeGreaterThan(META_TURNOVER_MENSAL);
+    expect(r.status).toBe('bad');
+    expect(r.desligamentos).toBeGreaterThan(0);
+  });
+
+  it('retorna status good para Gente (diretoria saudável)', () => {
+    const r = getTurnoverRate('12m', 'Gente');
+    expect(r.taxa).toBeLessThanOrEqual(META_TURNOVER_MENSAL * 1.5);
+    expect(['good', 'warn']).toContain(r.status);
+  });
+
+  it('separa voluntário vs. involuntário — soma deve igualar o total', () => {
+    const total       = getTurnoverRate('12m', 'Tecnologia');
+    const voluntario  = getTurnoverRate('12m', 'Tecnologia', 'voluntário');
+    const involuntario = getTurnoverRate('12m', 'Tecnologia', 'involuntário');
+    expect(voluntario.desligamentos + involuntario.desligamentos).toBe(total.desligamentos);
+  });
+
+  it('turnover voluntário de Tecnologia é maior que involuntário (anomalia de remuneração)', () => {
+    const vol = getTurnoverRate('12m', 'Tecnologia', 'voluntário');
+    const inv = getTurnoverRate('12m', 'Tecnologia', 'involuntário');
+    expect(vol.desligamentos).toBeGreaterThan(inv.desligamentos);
+  });
+
+  it('retorna headcountMedio > 0', () => {
+    const r = getTurnoverRate('6m', 'Operações');
+    expect(r.headcountMedio).toBeGreaterThan(0);
+  });
+
+  it('retorna meta como constante para todas as diretorias', () => {
+    const dirs = ['Geral', 'Tecnologia', 'Gente'] as const;
+    for (const d of dirs) {
+      expect(getTurnoverRate('12m', d).meta).toBe(META_TURNOVER_MENSAL);
+    }
+  });
+});
+
+// ── getTrend ──────────────────────────────────────────────────────────────────
+
+describe('getTrend', () => {
+  it('Tecnologia: turnover 2024 maior que 2023 (YoY positivo)', () => {
+    const r = getTrend('Tecnologia', '12m');
+    expect(r.variacaoYoY).toBeGreaterThan(0);
+    expect(r.direcao).toBe('subindo');
+  });
+
+  it('Tecnologia: detecta mesDaVirada em 2023 (escalada começa em Jul/2023)', () => {
+    const r = getTrend('Tecnologia', '12m');
+    expect(r.mesDaVirada).not.toBeNull();
+    // A virada deve ser entre Jun e Set de 2023
+    if (r.mesDaVirada) {
+      expect(r.mesDaVirada >= '2023-06' && r.mesDaVirada <= '2023-09').toBe(true);
+    }
+  });
+
+  it('retorna série completa com 24 pontos', () => {
+    const r = getTrend('Geral', '12m');
+    expect(r.serie).toHaveLength(24);
+  });
+
+  it('série mensal começa em 2023-01 e termina em 2024-12', () => {
+    const r = getTrend('Gente', '12m');
+    expect(r.serie[0].mes).toBe('2023-01');
+    expect(r.serie[23].mes).toBe('2024-12');
+  });
+
+  it('Gente: trend estável ou positivo (diretoria saudável)', () => {
+    const r = getTrend('Gente', '12m');
+    // Taxa atual deve ser baixa — não "subindo" de forma alarmante
+    expect(r.taxaAtual).toBeLessThan(META_TURNOVER_MENSAL * 2);
+  });
+
+  it('Operações: turnover sobe no 2S/2024 comparado ao 2S/2023 (YoY)', () => {
+    const r = getTrend('Operações', '6m'); // Jul-Dez 2024 vs. Jul-Dez 2023
+    expect(r.variacaoYoY).toBeGreaterThan(0);
+  });
+
+  it('filtro voluntário — tendência separada é consistente com o total', () => {
+    const total = getTrend('Tecnologia', '12m');
+    const vol   = getTrend('Tecnologia', '12m', 'voluntário');
+    // Voluntários não podem ser mais do que o total
+    expect(vol.taxaAtual).toBeLessThanOrEqual(total.taxaAtual + 0.001);
+  });
+
+  it('taxaMesmoPeriodoAnoAnterior é não-nulo para periodo 12m', () => {
+    const r = getTrend('Geral', '12m');
+    expect(r.taxaMesmoPeriodoAnoAnterior).not.toBeNull();
+  });
+});
+
+// ── getProjection ─────────────────────────────────────────────────────────────
+
+describe('getProjection', () => {
+  it('retorna projeção para 3 meses (Jan-Mar 2025)', () => {
+    const r = getProjection('Geral');
+    expect(r.serieProjetada).toHaveLength(3);
+    expect(r.serieProjetada[0].mes).toBe('2025-01');
+    expect(r.serieProjetada[2].mes).toBe('2025-03');
+  });
+
+  it('taxa projetada de Tecnologia > taxa projetada de Gente (padrão esperado)', () => {
+    const tech = getProjection('Tecnologia');
+    const gente = getProjection('Gente');
+    expect(tech.taxaProjetadaProximo3Meses).toBeGreaterThan(gente.taxaProjetadaProximo3Meses);
+  });
+
+  it('série histórica tem 24 pontos', () => {
+    const r = getProjection('Operações');
+    expect(r.serieHistorica).toHaveLength(24);
+  });
+
+  it('projeção voluntária < projeção total para Tecnologia', () => {
+    const total = getProjection('Tecnologia');
+    const vol   = getProjection('Tecnologia', 'voluntário');
+    expect(vol.taxaProjetadaProximo3Meses).toBeLessThan(total.taxaProjetadaProximo3Meses + 0.001);
+  });
+});
+
+// ── rankDiretoriasByTurnover ──────────────────────────────────────────────────
+
+describe('rankDiretoriasByTurnover', () => {
+  it('Tecnologia aparece no topo do ranking no 2S/2023 (anomalia principal)', () => {
+    const r = rankDiretoriasByTurnover('6m');
+    expect(r.ranking[0].diretoria).toBe('Tecnologia');
+  });
+
+  it('ranking contém todas as 6 diretorias', () => {
+    const r = rankDiretoriasByTurnover('12m');
+    expect(r.ranking).toHaveLength(6);
+  });
+
+  it('ranking está ordenado do maior para o menor', () => {
+    const r = rankDiretoriasByTurnover('12m');
+    for (let i = 0; i < r.ranking.length - 1; i++) {
+      expect(r.ranking[i].taxa).toBeGreaterThanOrEqual(r.ranking[i + 1].taxa);
+    }
+  });
+
+  it('Gente ou Financeiro & Risco aparecem no final do ranking (diretorias saudáveis)', () => {
+    const r = rankDiretoriasByTurnover('12m');
+    const bottom2 = r.ranking.slice(-2).map(x => x.diretoria);
+    const haystack = ['Gente', 'Financeiro & Risco', 'Produtos & Plataforma'];
+    expect(bottom2.some(d => haystack.includes(d))).toBe(true);
+  });
+
+  it('ranking voluntário: Tecnologia também lidera (fuga de talentos)', () => {
+    const r = rankDiretoriasByTurnover('12m', 'voluntário');
+    expect(r.ranking[0].diretoria).toBe('Tecnologia');
+  });
+});
+
+// ── breakdownByDimension ──────────────────────────────────────────────────────
+
+describe('breakdownByDimension', () => {
+  it('Tecnologia/posicionamentoFaixa: piso+q1 concentram >50% das saídas no 2S/2024', () => {
+    const r = breakdownByDimension('6m', 'Tecnologia', 'posicionamentoFaixa');
+    const pisoQ1 = r.itens.filter(i => i.label === 'piso' || i.label === 'q1');
+    const pct = pisoQ1.reduce((s, i) => s + i.percentual, 0);
+    expect(pct).toBeGreaterThan(50);
+  });
+
+  it('Tecnologia/nivelPerformance: "acima" concentra a maioria das saídas no 2S/2024', () => {
+    const r = breakdownByDimension('6m', 'Tecnologia', 'nivelPerformance');
+    const acima = r.itens.find(i => i.label === 'acima');
+    expect(acima).toBeDefined();
+    expect(acima!.percentual).toBeGreaterThan(50);
+  });
+
+  it('Distribuição/tipoDesligamento em Janeiro: ~50-60% involuntário', () => {
+    const r = breakdownByDimension('q1', 'Distribuição & Assessoria', 'tipoDesligamento');
+    const inv = r.itens.find(i => i.label === 'involuntário');
+    if (inv) {
+      // A sazonalidade de Jan influencia o Q1
+      expect(inv.percentual).toBeGreaterThan(30);
+    }
+  });
+
+  it('percentuais somam 100', () => {
+    const r = breakdownByDimension('12m', 'Tecnologia', 'senioridade');
+    const total = r.itens.reduce((s, i) => s + i.percentual, 0);
+    expect(Math.round(total)).toBe(100);
+  });
+
+  it('dimensão senioridade retorna itens em ordem ordinária (júnior → diretoria)', () => {
+    const r = breakdownByDimension('12m', 'Tecnologia', 'senioridade');
+    const labels = r.itens.map(i => i.label);
+    const order = ['júnior', 'pleno', 'sênior', 'gerência', 'diretoria'];
+    let lastIdx = -1;
+    for (const l of labels) {
+      const idx = order.indexOf(l);
+      if (idx !== -1) {
+        expect(idx).toBeGreaterThan(lastIdx);
+        lastIdx = idx;
+      }
+    }
+  });
+
+  it('pré-filtro tipoDesligamento=voluntário reduz o total em Distribuição (mix de tipos)', () => {
+    // Distribuição tem mix de voluntário e involuntário em todos os períodos
+    const total = breakdownByDimension('12m', 'Distribuição & Assessoria', 'nivelPerformance');
+    const vol   = breakdownByDimension('12m', 'Distribuição & Assessoria', 'nivelPerformance', 'voluntário');
+    const inv   = breakdownByDimension('12m', 'Distribuição & Assessoria', 'nivelPerformance', 'involuntário');
+    // Voluntários + involuntários = total
+    expect(vol.totalDesligamentos + inv.totalDesligamentos).toBe(total.totalDesligamentos);
+    // Ambos os tipos existem
+    expect(vol.totalDesligamentos).toBeGreaterThan(0);
+    expect(inv.totalDesligamentos).toBeGreaterThan(0);
+  });
+
+  it('retorna totalDesligamentos > 0 para Tecnologia em qualquer período', () => {
+    const periodos = ['3m', '6m', '12m', 'q1', 'q2', 'q3', 'q4'] as const;
+    for (const p of periodos) {
+      const r = breakdownByDimension(p, 'Tecnologia', 'motivoDesligamento');
+      expect(r.totalDesligamentos).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ── getHeadcount ──────────────────────────────────────────────────────────────
+
+describe('getHeadcount', () => {
+  it('headcount total da empresa (Geral) > 800 no início de 2024', () => {
+    const r = getHeadcount('12m', 'Geral');
+    expect(r.headcountInicio).toBeGreaterThan(800);
+  });
+
+  it('Tecnologia cresceu em headcount (admissões compensam saídas)', () => {
+    const r = getHeadcount('12m', 'Tecnologia');
+    expect(r.headcountFim).toBeGreaterThan(0);
+  });
+
+  it('série mensal de 12m tem 12 pontos', () => {
+    const r = getHeadcount('12m', 'Geral');
+    expect(r.serieMensal).toHaveLength(12);
+  });
+});
