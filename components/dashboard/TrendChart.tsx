@@ -117,12 +117,14 @@ export function TrendChart({ tendencia, projecao, meta }: TrendChartProps) {
               color: 'var(--color-text-primary)',
               fontSize: 12,
             }}
-            formatter={(value: number, name: string) => {
+            formatter={(value, name) => {
+              const v = typeof value === 'number' ? value : Number(value);
+              const n = String(name);
               const labels: Record<string, string> = {
                 taxa: 'Turnover',
                 projetado: 'Projetado',
               };
-              return [`${value.toFixed(2)}%`, labels[name] ?? name];
+              return [`${v.toFixed(2)}%`, labels[n] ?? n];
             }}
           />
           <Legend
