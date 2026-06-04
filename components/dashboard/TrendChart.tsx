@@ -24,6 +24,7 @@ interface TrendChartProps {
   tendencia: ResultadoTendencia;
   projecao: ResultadoProjecao;
   meta: number;
+  narrativeTitle?: string;
 }
 
 interface ChartDataPoint {
@@ -36,7 +37,7 @@ function fmt(v: number) {
   return `${(v * 100).toFixed(2)}%`;
 }
 
-export function TrendChart({ tendencia, projecao, meta }: TrendChartProps) {
+export function TrendChart({ tendencia, projecao, meta, narrativeTitle }: TrendChartProps) {
   // Combina série histórica + pontos projetados
   const historico: ChartDataPoint[] = tendencia.serie.map((p) => ({
     label: p.label,
@@ -79,7 +80,7 @@ export function TrendChart({ tendencia, projecao, meta }: TrendChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Evolução do Turnover</CardTitle>
+        <CardTitle>{narrativeTitle ?? 'Evolução do Turnover'}</CardTitle>
         <span
           className="text-xs"
           style={{ color: 'var(--color-text-muted)' }}

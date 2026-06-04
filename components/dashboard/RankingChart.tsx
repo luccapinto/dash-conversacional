@@ -22,11 +22,13 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 interface RankingChartGeral {
   mode: 'ranking';
   data: ResultadoRanking;
+  narrativeTitle?: string;
 }
 
 interface RankingChartBreakdown {
   mode: 'breakdown';
   data: ResultadoBreakdown;
+  narrativeTitle?: string;
 }
 
 type RankingChartProps = RankingChartGeral | RankingChartBreakdown;
@@ -54,7 +56,7 @@ function calcStatus(taxa: number, meta = 0.02): 'good' | 'warn' | 'bad' {
 
 export function RankingChart(props: RankingChartProps) {
   if (props.mode === 'ranking') {
-    const { data } = props;
+    const { data, narrativeTitle } = props;
     const chartData = data.ranking.map((item) => ({
       name: item.diretoria.length > 18 ? item.diretoria.slice(0, 16) + '…' : item.diretoria,
       fullName: item.diretoria,
@@ -65,7 +67,7 @@ export function RankingChart(props: RankingChartProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Ranking por Diretoria</CardTitle>
+          <CardTitle>{narrativeTitle ?? 'Ranking por Diretoria'}</CardTitle>
           <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
             {data.periodo}
           </span>
@@ -127,7 +129,7 @@ export function RankingChart(props: RankingChartProps) {
   }
 
   // mode === 'breakdown'
-  const { data } = props;
+  const { data, narrativeTitle } = props;
   const chartData = data.itens.map((item, i) => ({
     name: item.label,
     taxa: item.taxaTurnover !== undefined
@@ -141,7 +143,7 @@ export function RankingChart(props: RankingChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Breakdown por Posição Salarial</CardTitle>
+        <CardTitle>{narrativeTitle ?? 'Breakdown por Posição Salarial'}</CardTitle>
         <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
           {data.diretoria} · {data.periodo}
         </span>

@@ -12,6 +12,7 @@
 
 import { useState } from 'react';
 import { FilterProvider, useFilter } from '@/lib/context/FilterContext';
+import { useInsight } from '@/lib/hooks/useInsight';
 import {
   getTurnoverRate,
   getTrend,
@@ -89,6 +90,7 @@ function ChatPlaceholder() {
 function DashboardContent() {
   const { periodo, diretoria } = useFilter();
   const [tipo, setTipo] = useState<TipoDesligamento | 'todos'>('todos');
+  const { insight, loading: insightLoading } = useInsight(periodo, diretoria);
 
   const tipoFiltro = tipo !== 'todos' ? tipo : undefined;
 
@@ -119,7 +121,7 @@ function DashboardContent() {
       <FilterBar tipo={tipo} onTipoChange={setTipo} />
 
       {/* Banner de manchete IA */}
-      <InsightBanner />
+      <InsightBanner insight={insight} loading={insightLoading} />
 
       {/* Big Numbers */}
       <BigStatsRow
@@ -134,12 +136,21 @@ function DashboardContent() {
           tendencia={tendencia}
           projecao={projecao}
           meta={META_TURNOVER_MENSAL}
+          narrativeTitle={insight?.titulos.graficoTendencia}
         />
 
         {isGeralView && rankingData ? (
-          <RankingChart mode="ranking" data={rankingData} />
+          <RankingChart
+            mode="ranking"
+            data={rankingData}
+            narrativeTitle={insight?.titulos.graficoRanking}
+          />
         ) : breakdownData ? (
-          <RankingChart mode="breakdown" data={breakdownData} />
+          <RankingChart
+            mode="breakdown"
+            data={breakdownData}
+            narrativeTitle={insight?.titulos.graficoRanking}
+          />
         ) : null}
       </div>
     </div>
