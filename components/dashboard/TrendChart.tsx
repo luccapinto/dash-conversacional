@@ -130,11 +130,16 @@ export function TrendChart({ tendencia, projecao, meta, narrativeTitle, compact,
 
   // YTD date range label
   const ytdYear  = lastMes.slice(0, 4);
-  const ytdStart = `${ytdYear}-01`;
-  const ytdEnd   = lastMes;
   const ytdLabel = ytdData.length > 0
-    ? `Jan/23 – ${ytdData[ytdData.length - 1]?.label ?? 'Dez/24'}`
-    : 'Jan/23 – Dez/24';
+    ? `Jan/${ytdYear.slice(2)} – ${ytdData[ytdData.length - 1]?.label ?? `Dez/${ytdYear.slice(2)}`}`
+    : `Jan/${ytdYear.slice(2)} – Dez/${ytdYear.slice(2)}`;
+
+  // Mensal range label derived from actual data
+  const mensalFirst = mensalHistorical[0]?.label;
+  const mensalLast  = mensalProjected.length > 0
+    ? mensalProjected[mensalProjected.length - 1].label
+    : mensalHistorical[mensalHistorical.length - 1]?.label;
+  const mensalRangeLabel = mensalFirst && mensalLast ? `${mensalFirst} – ${mensalLast}` : 'Jan/23 – Dez/24';
 
   return (
     <Card>
@@ -142,7 +147,7 @@ export function TrendChart({ tendencia, projecao, meta, narrativeTitle, compact,
         <CardTitle>{narrativeTitle ?? 'Resultado Mês a Mês'}</CardTitle>
         <div className="flex items-center gap-3">
           <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {mode === 'mensal' ? 'Jan/23 – Mar/25' : ytdLabel}
+            {mode === 'mensal' ? mensalRangeLabel : ytdLabel}
           </span>
           {/* Toggle */}
           <div className="flex items-center rounded overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
@@ -228,16 +233,21 @@ export function TrendChart({ tendencia, projecao, meta, narrativeTitle, compact,
               formatter={(v: unknown) => { const n = Number(v); return n > 0 ? n : ''; }}
             />
             {chartData.map((d, i) => {
-              const taxaVal = (d as Record<string, unknown>)[taxaKey] as number;
-              const mes = (d as Record<string, unknown>).mes as string | undefined;
+              const taxaVal     = (d as Record<string, unknown>)[taxaKey] as number;
+              const mes         = (d as Record<string, unknown>).mes as string | undefined;
               const isProjected = (d as Record<string, unknown>).projected as boolean;
-              // Highlight bars in selected period (Mensal mode)
+              // In YTD mode, compare cumulative rate against cumulative meta (growing)
+              const ytdMetaVal  = mode === 'ytd'
+                ? (d as Record<string, unknown>).ytdMetaLine as number
+                : undefined;
+              const metaForColor = ytdMetaVal !== undefined ? ytdMetaVal : metaPct;
+              // Highlight bars in selected period (Mensal mode); in YTD all visible
               const inPeriod = !mes || mesesPeriodo.length === 0 || mesesPeriodo.includes(mes);
-              const opacity  = isProjected ? 0.35 : mode === 'ytd' ? 0.75 : (inPeriod ? 0.85 : 0.3);
+              const opacity  = isProjected ? 0.35 : mode === 'ytd' ? 0.8 : (inPeriod ? 0.85 : 0.3);
               return (
                 <Cell
                   key={i}
-                  fill={isProjected ? 'var(--color-chart-2)' : barFill(taxaVal, metaPct)}
+                  fill={isProjected ? 'var(--color-chart-2)' : barFill(taxaVal, metaForColor)}
                   fillOpacity={opacity}
                 />
               );
