@@ -66,6 +66,33 @@ function resolvePeriodo(periodo: Periodo): {
   mesesAnoAnterior: string[] | null;
   label: string;
 } {
+  // Handle full-year 2023
+  if (periodo === '2023') {
+    return {
+      mesesAtual: generateRange('2023-01', '2023-12'),
+      mesesAnterior: [],
+      mesesAnoAnterior: null,
+      label: 'Jan–Dez 2023',
+    };
+  }
+
+  // Handle YYYY-MM monthly periods
+  const monthMatch = /^(\d{4})-(\d{2})$/.exec(periodo);
+  if (monthMatch) {
+    const y = parseInt(monthMatch[1]);
+    const m = parseInt(monthMatch[2]);
+    const prevM = m === 1 ? 12 : m - 1;
+    const prevY = m === 1 ? y - 1 : y;
+    const prevMes = `${prevY}-${String(prevM).padStart(2, '0')}`;
+    const aaMes = `${y - 1}-${String(m).padStart(2, '0')}`;
+    return {
+      mesesAtual: [periodo],
+      mesesAnterior: [prevMes],
+      mesesAnoAnterior: y > 2023 ? [aaMes] : null,
+      label: mesLabel(periodo),
+    };
+  }
+
   switch (periodo) {
     case '12m': return {
       mesesAtual:       generateRange('2024-01', '2024-12'),
@@ -109,6 +136,8 @@ function resolvePeriodo(periodo: Periodo): {
       mesesAnoAnterior: generateRange('2023-10', '2023-12'),
       label: 'Q4 2024',
     };
+    default:
+      throw new Error(`Período inválido: ${periodo as string}`);
   }
 }
 

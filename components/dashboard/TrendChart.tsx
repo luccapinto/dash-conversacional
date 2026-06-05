@@ -1,23 +1,18 @@
 'use client';
 
-/**
- * TrendChart — gráfico de tendência de turnover (24 meses históricos + projeção 3m).
- * Client Component porque Recharts requer ambiente de browser.
- */
-
+import { useState } from 'react';
 import {
-  ComposedChart,
-  Area,
-  Line,
+  BarChart,
+  Bar,
   ReferenceLine,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
+  Cell,
   ResponsiveContainer,
 } from 'recharts';
-import type { ResultadoTendencia, ResultadoProjecao } from '@/lib/types';
+import type { ResultadoTendencia, ResultadoProjecao, PontoSerie } from '@/lib/types';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 
 interface TrendChartProps {
@@ -28,59 +23,70 @@ interface TrendChartProps {
   compact?: boolean;
 }
 
-interface ChartDataPoint {
-  label: string;
-  taxa?: number;
-  projetado?: number;
+type ViewMode = 'mom' | 'ytd';
+
+function computeYTD(serie: PontoSerie[]): number[] {
+  let cumDesl = 0;
+  let cumHC = 0;
+  let currentYear = '';
+  return serie.map((p) => {
+    const year = p.mes.slice(0, 4);
+    if (year !== currentYear) {
+      cumDesl = 0;
+      cumHC = 0;
+      currentYear = year;
+    }
+    cumDesl += p.desligamentos;
+    cumHC += p.headcount;
+    return cumHC > 0 ? cumDesl / cumHC : 0;
+  });
 }
 
-function fmt(v: number) {
-  return `${(v * 100).toFixed(2)}%`;
+function barColor(taxa: number, meta: number, isProjected: boolean): string {
+  if (isProjected) return 'var(--color-chart-2)';
+  if (taxa > meta * 150) return 'var(--color-bad)';
+  if (taxa > meta * 100) return 'var(--color-warn)';
+  return 'var(--color-good)';
 }
 
 export function TrendChart({ tendencia, projecao, meta, narrativeTitle, compact }: TrendChartProps) {
-  // Combina série histórica + pontos projetados
-  const historico: ChartDataPoint[] = tendencia.serie.map((p) => ({
-    label: p.label,
-    taxa: parseFloat((p.taxa * 100).toFixed(3)),
-  }));
+  const [mode, setMode] = useState<ViewMode>('mom');
 
-  const projetados: ChartDataPoint[] = projecao.serieProjetada.map((p) => ({
-    label: p.label,
-    projetado: parseFloat((p.taxaProjetada * 100).toFixed(3)),
-  }));
-
-  // Para conectar a linha, adiciona o último ponto histórico no início dos projetados
-  const lastHistorico = historico[historico.length - 1];
-  const projetadosConnected: ChartDataPoint[] = [
-    { label: lastHistorico.label, projetado: lastHistorico.taxa },
-    ...projetados,
-  ];
-
-  const data: ChartDataPoint[] = [
-    ...historico,
-    ...projetados,
-  ];
-
-  // Juntar tudo numa única série para o gráfico
-  const merged = new Map<string, ChartDataPoint>();
-  for (const d of data) {
-    merged.set(d.label, { ...merged.get(d.label), ...d });
-  }
-  // Re-add connected projected data
-  for (const d of projetadosConnected) {
-    const existing = merged.get(d.label);
-    if (existing) {
-      merged.set(d.label, { ...existing, projetado: d.projetado });
-    }
-  }
-
-  const chartData = [...merged.values()];
+  const ytdRates = computeYTD(tendencia.serie);
   const metaPct = parseFloat((meta * 100).toFixed(3));
 
+  // Show last 12 months in compact mode, all 24 in full
+  const historicalSlice = compact ? tendencia.serie.slice(-12) : tendencia.serie;
+  const ytdSlice = compact ? ytdRates.slice(-12) : ytdRates;
+
+  const historicalData = historicalSlice.map((p, i) => ({
+    label: p.label,
+    mom: parseFloat((p.taxa * 100).toFixed(3)),
+    ytd: parseFloat((ytdSlice[i] * 100).toFixed(3)),
+    projected: false,
+  }));
+
+  const projectedData = projecao.serieProjetada.map((p) => ({
+    label: p.label,
+    mom: parseFloat((p.taxaProjetada * 100).toFixed(3)),
+    ytd: null,
+    projected: true,
+  }));
+
+  const chartData = mode === 'ytd'
+    ? historicalData
+    : [...historicalData, ...(compact ? [] : projectedData)];
+
+  const dataKey = mode === 'mom' ? 'mom' : 'ytd';
+  const height = compact ? 160 : 260;
+
   const chart = (
-    <ResponsiveContainer width="100%" height={compact ? 180 : 280}>
-      <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart
+        data={chartData}
+        margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+        barCategoryGap="20%"
+      >
         <CartesianGrid
           strokeDasharray="3 3"
           stroke="var(--color-border)"
@@ -88,17 +94,17 @@ export function TrendChart({ tendencia, projecao, meta, narrativeTitle, compact 
         />
         <XAxis
           dataKey="label"
-          tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
+          tick={{ fill: 'var(--color-text-muted)', fontSize: compact ? 9 : 10 }}
           tickLine={false}
           axisLine={false}
-          interval={compact ? 5 : 3}
+          interval={compact ? 2 : 3}
         />
         <YAxis
           tickFormatter={(v) => `${v.toFixed(1)}%`}
-          tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
+          tick={{ fill: 'var(--color-text-muted)', fontSize: compact ? 9 : 10 }}
           tickLine={false}
           axisLine={false}
-          width={44}
+          width={38}
         />
         <Tooltip
           contentStyle={{
@@ -108,67 +114,33 @@ export function TrendChart({ tendencia, projecao, meta, narrativeTitle, compact 
             color: 'var(--color-text-primary)',
             fontSize: 12,
           }}
-          formatter={(value, name) => {
+          formatter={(value) => {
             const v = typeof value === 'number' ? value : Number(value);
-            const n = String(name);
-            const labels: Record<string, string> = {
-              taxa: 'Turnover',
-              projetado: 'Projetado',
-            };
-            return [`${v.toFixed(2)}%`, labels[n] ?? n];
+            return [`${v.toFixed(2)}%`, mode === 'ytd' ? 'Acumulado YTD' : 'Turnover mensal'];
           }}
         />
-        {!compact && (
-          <Legend
-            wrapperStyle={{ fontSize: 11, color: 'var(--color-text-secondary)' }}
-            formatter={(value) => {
-              const labels: Record<string, string> = {
-                taxa: 'Turnover histórico',
-                projetado: 'Projeção (Jan–Mar/25)',
-              };
-              return labels[value] ?? value;
-            }}
-          />
-        )}
-
         <ReferenceLine
           y={metaPct}
           stroke="var(--color-warn)"
           strokeDasharray="5 3"
           strokeWidth={1.5}
           label={{
-            value: `Meta ${fmt(meta)}`,
+            value: `Meta ${metaPct.toFixed(1)}%`,
             position: 'insideTopRight',
             fill: 'var(--color-warn-text)',
             fontSize: 10,
           }}
         />
-
-        <Area
-          type="monotone"
-          dataKey="taxa"
-          stroke="var(--color-chart-1)"
-          strokeWidth={2}
-          fill="var(--color-chart-1)"
-          fillOpacity={0.08}
-          dot={false}
-          activeDot={{ r: 4, fill: 'var(--color-chart-1)' }}
-          connectNulls={false}
-        />
-
-        <Area
-          type="monotone"
-          dataKey="projetado"
-          stroke="var(--color-chart-2)"
-          strokeWidth={2}
-          strokeDasharray="6 3"
-          fill="var(--color-chart-2)"
-          fillOpacity={0.06}
-          dot={false}
-          activeDot={{ r: 4, fill: 'var(--color-chart-2)' }}
-          connectNulls={false}
-        />
-      </ComposedChart>
+        <Bar dataKey={dataKey} maxBarSize={compact ? 12 : 16} radius={[2, 2, 0, 0]}>
+          {chartData.map((entry, index) => (
+            <Cell
+              key={`cell-${index}`}
+              fill={barColor(entry.mom, metaPct, entry.projected)}
+              fillOpacity={entry.projected ? 0.45 : 0.82}
+            />
+          ))}
+        </Bar>
+      </BarChart>
     </ResponsiveContainer>
   );
 
@@ -178,12 +150,31 @@ export function TrendChart({ tendencia, projecao, meta, narrativeTitle, compact 
     <Card>
       <CardHeader>
         <CardTitle>{narrativeTitle ?? 'Evolução do Turnover'}</CardTitle>
-        <span
-          className="text-xs"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          Jan/23 – Mar/25
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            Jan/23 – {mode === 'ytd' ? 'Dez/24' : 'Mar/25'}
+          </span>
+          {/* MoM / YTD toggle */}
+          <div
+            className="flex items-center rounded overflow-hidden ml-2"
+            style={{ border: '1px solid var(--color-border)' }}
+          >
+            {(['mom', 'ytd'] as ViewMode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className="px-2 py-0.5 text-xs font-medium transition-colors"
+                style={{
+                  backgroundColor: mode === m ? 'var(--color-accent)' : 'transparent',
+                  color: mode === m ? 'var(--color-text-inverse)' : 'var(--color-text-muted)',
+                  borderRight: m === 'mom' ? '1px solid var(--color-border)' : undefined,
+                }}
+              >
+                {m.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
       </CardHeader>
       {chart}
     </Card>
