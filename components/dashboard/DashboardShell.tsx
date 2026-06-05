@@ -14,12 +14,10 @@ import { useState } from 'react';
 import { FilterProvider, useFilter } from '@/lib/context/FilterContext';
 import { useInsight } from '@/lib/hooks/useInsight';
 import {
-  getTurnoverRate,
   getTrend,
   getProjection,
   rankDiretoriasByTurnover,
   breakdownByDimension,
-  getHeadcount,
   META_TURNOVER_MENSAL,
 } from '@/lib/calculations';
 import type { TipoDesligamento } from '@/lib/types';
@@ -39,10 +37,8 @@ function DashboardContent() {
   const tipoFiltro = tipo !== 'todos' ? tipo : undefined;
 
   // Cálculos via funções da camada semântica
-  const turnover = getTurnoverRate(periodo, diretoria, tipoFiltro);
   const tendencia = getTrend(diretoria, periodo, tipoFiltro);
-  const projecao = getProjection(diretoria, tipoFiltro);
-  const headcount = getHeadcount(periodo, diretoria);
+  const projecao  = getProjection(diretoria, tipoFiltro);
 
   // Gráfico 2: ranking geral ou breakdown por diretoria
   const isGeralView = diretoria === 'Geral';
@@ -52,12 +48,6 @@ function DashboardContent() {
   const breakdownData = !isGeralView
     ? breakdownByDimension(periodo, diretoria, 'especialidade', tipoFiltro)
     : null;
-
-  // Substitui headcountMedio do turnover pelo valor mais preciso do getHeadcount
-  const turnoverComHC = {
-    ...turnover,
-    headcountMedio: headcount.headcountFim || turnover.headcountMedio,
-  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -69,7 +59,6 @@ function DashboardContent() {
 
       {/* Big Numbers */}
       <BigStatsRow
-        turnover={turnoverComHC}
         tendencia={tendencia}
         projecao={projecao}
         periodo={periodo}

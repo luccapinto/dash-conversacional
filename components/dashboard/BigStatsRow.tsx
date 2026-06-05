@@ -1,17 +1,17 @@
 /**
  * BigStatsRow — dois cards de storytelling: Visão Mensal e Visão YTD.
- * YTD = desligamentos acumulados / headcount médio (fórmula anualizada).
+ * Mensal = taxa do último mês do período selecionado.
+ * YTD    = desligamentos acumulados / headcount médio desde Jan do ano.
  * Meta YTD = meta_mensal × n_meses (cresce com o período).
  */
 
 import { Card } from '@/components/ui/Card';
-import { getMesesPeriodo } from '@/lib/calculations';
-import type { ResultadoTurnover, ResultadoTendencia, ResultadoProjecao, Periodo, PontoSerie } from '@/lib/types';
+import { getMesesPeriodo, META_TURNOVER_MENSAL } from '@/lib/calculations';
+import type { ResultadoTendencia, ResultadoProjecao, Periodo, PontoSerie } from '@/lib/types';
 
 const MES_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 interface BigStatsRowProps {
-  turnover: ResultadoTurnover;
   tendencia: ResultadoTendencia;
   projecao: ResultadoProjecao;
   periodo: Periodo;
@@ -56,6 +56,52 @@ function DeltaRow({ label, delta, benchmark, invert = false }: DeltaRowProps) {
       </div>
     </div>
   );
+}
+
+// ── Mensal computation (last month of selected period) ───────────────────────
+
+interface MensalResult {
+  taxa: number;
+  desligamentos: number;
+  headcount: number;
+  vsMeta: number;
+  vsPrev: number | null;
+  vsYoy: number | null;
+  taxaPrev: number | null;
+  taxaAA: number | null;
+  label: string;
+}
+
+function computeMensal(serie: PontoSerie[], periodo: Periodo, meta: number): MensalResult | null {
+  const meses = getMesesPeriodo(periodo);
+  if (meses.length === 0) return null;
+
+  const lastMes = meses[meses.length - 1];
+  const lastIdx = serie.findIndex(p => p.mes === lastMes);
+  if (lastIdx < 0) return null;
+
+  const pt = serie[lastIdx];
+
+  const prevPt = lastIdx > 0 ? serie[lastIdx - 1] : null;
+  const vsPrev  = prevPt ? pt.taxa - prevPt.taxa : null;
+
+  const y     = parseInt(lastMes.slice(0, 4));
+  const mm    = lastMes.slice(5);
+  const aaMes = `${y - 1}-${mm}`;
+  const aaPt  = serie.find(p => p.mes === aaMes);
+  const vsYoy = aaPt ? pt.taxa - aaPt.taxa : null;
+
+  return {
+    taxa: pt.taxa,
+    desligamentos: pt.desligamentos,
+    headcount: pt.headcount,
+    vsMeta: pt.taxa - meta,
+    vsPrev,
+    vsYoy,
+    taxaPrev: prevPt?.taxa ?? null,
+    taxaAA:   aaPt?.taxa  ?? null,
+    label:    pt.label,
+  };
 }
 
 // ── YTD computation (annualized formula) ──────────────────────────────────────
@@ -210,41 +256,30 @@ function StoryCard({
 
 // ── Public component ──────────────────────────────────────────────────────────
 
-export function BigStatsRow({ turnover, tendencia, projecao, periodo }: BigStatsRowProps) {
-  const meta = turnover.meta; // monthly meta
+export function BigStatsRow({ tendencia, projecao, periodo }: BigStatsRowProps) {
+  const meta = META_TURNOVER_MENSAL;
 
-  const ytd = computeYTD(tendencia.serie, periodo, meta);
-
-  // Mensal card uses existing turnover + tendencia data
-  const mensalVsMeta = turnover.taxa - meta;
-
-  // Label for the mensal card
-  const meses = getMesesPeriodo(periodo);
-  const n = meses.length;
-  const firstM = meses[0];
-  const lastM  = meses[n - 1];
-  const mensalLabel = n === 1
-    ? `${mesLabel(firstM)} ${firstM.slice(0, 4)}`
-    : n === 12
-    ? `Jan–Dez ${lastM.slice(0, 4)}`
-    : `${mesLabel(firstM)}–${mesLabel(lastM)} ${lastM.slice(0, 4)}`;
+  const mensal = computeMensal(tendencia.serie, periodo, meta);
+  const ytd    = computeYTD(tendencia.serie, periodo, meta);
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <StoryCard
-        mode="mensal"
-        taxa={turnover.taxa}
-        desligamentos={turnover.desligamentos}
-        headcountMedio={turnover.headcountMedio}
-        periodoLabel={mensalLabel}
-        vsMeta={mensalVsMeta}
-        vsPrev={tendencia.variacaoMoM}
-        vsYoy={tendencia.variacaoYoY}
-        metaRef={meta}
-        taxaPrev={tendencia.taxaPeriodoAnterior}
-        taxaAA={tendencia.taxaMesmoPeriodoAnoAnterior}
-        projecao={projecao.taxaProjetadaProximo3Meses}
-      />
+      {mensal ? (
+        <StoryCard
+          mode="mensal"
+          taxa={mensal.taxa}
+          desligamentos={mensal.desligamentos}
+          headcountMedio={mensal.headcount}
+          periodoLabel={mensal.label}
+          vsMeta={mensal.vsMeta}
+          vsPrev={mensal.vsPrev}
+          vsYoy={mensal.vsYoy}
+          metaRef={meta}
+          taxaPrev={mensal.taxaPrev}
+          taxaAA={mensal.taxaAA}
+          projecao={projecao.taxaProjetadaProximo3Meses}
+        />
+      ) : null}
       {ytd ? (
         <StoryCard
           mode="ytd"
