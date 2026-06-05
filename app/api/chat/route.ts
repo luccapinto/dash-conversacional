@@ -3,6 +3,7 @@ import {
   getTurnoverRate,
   getTrend,
   getProjection,
+  getYTD,
   rankDiretoriasByTurnover,
   breakdownByDimension,
   getHeadcount,
@@ -43,12 +44,17 @@ Responde perguntas sobre turnover, retenção e desligamentos com base exclusiva
 
 REGRAS — NUNCA IGNORE:
 1. NUNCA invente números. Use sempre as funções para buscar dados reais.
-2. Para qualquer pergunta com "cresceu", "aumentou", "piorou", "está alto", "tendência", "desde quando", "escalada", "evolução" → chame getTrend OBRIGATORIAMENTE antes de qualquer afirmação.
+2. Para "cresceu", "aumentou", "piorou", "tendência", "desde quando", "escalada", "evolução" → getTrend OBRIGATÓRIO.
 3. Para "por que?" → getTrend primeiro, depois breakdownByDimension (especialidade + nivelPerformance).
-4. Perguntas fora do escopo dos dados: diga claramente que não tem essa informação.
+4. Perguntas fora do escopo: diga claramente que não tem essa informação.
 5. Responda em português brasileiro, tom executivo e direto. Máximo 3 parágrafos curtos.
-6. Use os números que as funções retornam. Não mencione "as funções" — fale como quem conhece os dados diretamente.
-7. Meta mensal de turnover: ${(META_TURNOVER_MENSAL * 100).toFixed(1)}% ao mês.
+6. Use os números das funções. Não mencione "as funções" — fale como quem conhece os dados diretamente.
+
+TAXA MENSAL vs YTD — DIFERENÇA CRÍTICA:
+- getTurnoverRate → taxa MENSAL pontual (~2–4% por mês). Use para "qual o turnover de dezembro?", "como estamos este mês?".
+- getYTD → taxa ACUMULADA no ano (~24–36% para o ano completo). Meta YTD cresce: ${(META_TURNOVER_MENSAL * 100).toFixed(1)}%/mês × meses (ex: 12% em junho, 24% em dezembro).
+- Para qualquer pergunta com "YTD", "acumulado", "no ano", "desde janeiro", "acumulado do ano" → chame getYTD, NUNCA getTurnoverRate.
+- Ao responder sobre YTD: mencione a taxa acumulada (ex: "36%") E a meta YTD do período (ex: "meta de 24% para o ano").
 
 CONTEXTO DO FILTRO ATIVO:
 - Período: ${periodo} → ${describePeriodo(periodo)}
@@ -78,6 +84,8 @@ function executeTool(name: string, args: ToolArgs): unknown {
       return rankDiretoriasByTurnover(periodo, tipo);
     case 'breakdownByDimension':
       return breakdownByDimension(periodo, diretoria, args.dimensao as DimensaoBreakdown, tipo);
+    case 'getYTD':
+      return getYTD(periodo, diretoria, tipo);
     case 'getHeadcount':
       return getHeadcount(periodo, diretoria);
     default:

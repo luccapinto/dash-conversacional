@@ -480,6 +480,70 @@ export function getMesesPeriodo(periodo: Periodo): string[] {
 /** Meta anual: meta_mensal × 12 */
 export const META_TURNOVER_ANUAL = META_TURNOVER_MENSAL * 12;
 
+/**
+ * Retorna o turnover ACUMULADO YTD (Year-to-Date).
+ *
+ * Fórmula: totalDesligamentos / headcountMédioMensal (desde Jan do ano).
+ * Meta YTD cresce: meta_mensal × n_meses (ex: 2%/mês × 12 = 24% no ano).
+ *
+ * NÃO confundir com getTurnoverRate, que retorna a taxa MENSAL média (~2-3%).
+ *
+ * @param periodo - Determina o ano e o último mês do YTD
+ * @param diretoria - Diretoria ou 'Geral'
+ * @param tipoDesligamento - Filtrar por tipo de saída
+ */
+import type { ResultadoYTD } from '@/lib/types';
+
+export function getYTD(
+  periodo: Periodo,
+  diretoria: Diretoria = 'Geral',
+  tipoDesligamento?: TipoDesligamento,
+): ResultadoYTD {
+  const meses   = getMesesPeriodo(periodo);
+  const lastMes = meses.length > 0 ? meses[meses.length - 1] : '2024-12';
+  const ytdYear  = lastMes.slice(0, 4);
+  const ytdStart = `${ytdYear}-01`;
+
+  const ytdMonths = generateRange(ytdStart, lastMes);
+  const n = ytdMonths.length;
+
+  const desl    = filterDesligamentos(ytdMonths, diretoria, tipoDesligamento);
+  const totalHC = sumHeadcount(ytdMonths, diretoria);
+  const avgHC   = n > 0 ? totalHC / n : 0;
+  const taxa    = avgHC > 0 ? desl.length / avgHC : 0;
+  const metaYTD = META_TURNOVER_MENSAL * n;
+
+  // vs mesmo YTD do ano anterior
+  const aaYear   = String(parseInt(ytdYear) - 1);
+  const aaMonths = generateRange(`${aaYear}-01`, `${aaYear}-${lastMes.slice(5)}`);
+  const aaDesl   = filterDesligamentos(aaMonths, diretoria, tipoDesligamento);
+  const aaHC     = sumHeadcount(aaMonths, diretoria);
+  const aaAvgHC  = aaMonths.length > 0 ? aaHC / aaMonths.length : 0;
+  const taxaAA   = aaAvgHC > 0 ? aaDesl.length / aaAvgHC : null;
+
+  const lastLabel = MES_LABELS[parseInt(lastMes.slice(5)) - 1];
+  const label = n === 12 ? `Jan–Dez ${ytdYear}` : `Jan–${lastLabel} ${ytdYear}`;
+
+  const status = taxa <= metaYTD ? 'good' : taxa <= metaYTD * 1.5 ? 'warn' : 'bad';
+
+  return {
+    taxa,
+    taxaPercentual:    parseFloat((taxa    * 100).toFixed(2)),
+    desligamentos:     desl.length,
+    headcountMedio:    Math.round(avgHC),
+    metaYTD,
+    metaYTDPercentual: parseFloat((metaYTD * 100).toFixed(2)),
+    vsMeta:            taxa - metaYTD,
+    vsMetaPercentual:  parseFloat(((taxa - metaYTD) * 100).toFixed(2)),
+    taxaAnoAnterior:   taxaAA,
+    vsAnoAnterior:     taxaAA !== null ? taxa - taxaAA : null,
+    numMeses:          n,
+    label,
+    status,
+    statusLabel:       calcStatusLabel(taxa, metaYTD),
+  };
+}
+
 export function getHeadcount(
   periodo: Periodo,
   diretoria: Diretoria = 'Geral',

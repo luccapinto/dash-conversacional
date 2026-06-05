@@ -100,6 +100,24 @@ export interface PontoSerie {
   headcount: number;
 }
 
+/** getYTD → turnover acumulado desde Janeiro do ano até o mês do período */
+export interface ResultadoYTD {
+  taxa: number;               // decimal acumulado ex: 0.3614
+  taxaPercentual: number;     // ex: 36.14
+  desligamentos: number;      // total de saídas acumuladas no período
+  headcountMedio: number;     // headcount médio mensal
+  metaYTD: number;            // meta acumulada decimal ex: 0.24
+  metaYTDPercentual: number;  // ex: 24.0
+  vsMeta: number;             // taxa - metaYTD (decimal)
+  vsMetaPercentual: number;   // pp
+  taxaAnoAnterior: number | null;
+  vsAnoAnterior: number | null;
+  numMeses: number;           // meses decorridos no YTD
+  label: string;              // ex: "Jan–Dez 2024"
+  status: 'good' | 'warn' | 'bad';
+  statusLabel: string;
+}
+
 /** getTurnoverRate → resultado com contexto de meta */
 export interface ResultadoTurnover {
   taxa: number;

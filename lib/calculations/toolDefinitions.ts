@@ -191,6 +191,45 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function' as const,
     function: {
+      name: 'getYTD',
+      description:
+        'Retorna o turnover ACUMULADO YTD (Year-to-Date): total de desligamentos / headcount médio mensal, ' +
+        'desde Janeiro do ano até o último mês do período selecionado. ' +
+        'A meta YTD CRESCE com o tempo: meta_mensal × n_meses (ex: 2%/mês × 6 meses = 12% em junho; 2%/mês × 12 = 24% no ano). ' +
+        'DIFERENÇA CRÍTICA: getTurnoverRate retorna ~2-3% (taxa mensal). getYTD retorna ~24-36% (acumulado anual). ' +
+        'OBRIGATÓRIO quando a pergunta contiver: "YTD", "acumulado", "no ano", "desde janeiro", "ano até agora", "acumulado do ano". ' +
+        'NUNCA use getTurnoverRate para responder perguntas sobre YTD.',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodo: {
+            type: 'string',
+            enum: ['3m', '6m', '12m', 'q1', 'q2', 'q3', 'q4',
+              '2023',
+              '2024-01','2024-02','2024-03','2024-04','2024-05','2024-06',
+              '2024-07','2024-08','2024-09','2024-10','2024-11','2024-12',
+              '2023-01','2023-02','2023-03','2023-04','2023-05','2023-06',
+              '2023-07','2023-08','2023-09','2023-10','2023-11','2023-12'],
+            description: 'Período que define o ano e o último mês do YTD. "12m" = Jan–Dez 2024. "2024-06" = Jan–Jun 2024 (YTD até junho).',
+          },
+          diretoria: {
+            type: 'string',
+            enum: ['Geral', 'Tecnologia', 'Distribuição & Assessoria', 'Operações', 'Financeiro & Risco', 'Gente', 'Produtos & Plataforma'],
+            description: 'Diretoria ou "Geral". Default: "Geral".',
+          },
+          tipoDesligamento: {
+            type: 'string',
+            enum: ['voluntário', 'involuntário'],
+            description: 'Filtrar por tipo de saída. Omitir para analisar todos.',
+          },
+        },
+        required: ['periodo'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'getHeadcount',
       description:
         'Retorna o headcount (número de funcionários) de um período com evolução mensal. ' +
