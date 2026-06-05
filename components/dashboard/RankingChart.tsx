@@ -65,10 +65,12 @@ function DeltaCell({ delta }: { delta: number | null }) {
 function RankingTable({ data, narrativeTitle }: { data: ResultadoRanking; narrativeTitle?: string }) {
   const { ranking, periodo } = data;
 
-  // Company-wide total row
-  const totalDesl  = ranking.reduce((s, r) => s + r.desligamentos, 0);
+  // Weighted average: consistent with per-diretoria formula (desl / sumHC_period)
   const totalHC    = ranking.reduce((s, r) => s + r.headcountMedio, 0);
-  const totalTaxa  = totalHC > 0 ? totalDesl / totalHC : 0;
+  const totalDesl  = ranking.reduce((s, r) => s + r.desligamentos, 0);
+  const totalTaxa  = totalHC > 0
+    ? ranking.reduce((s, r) => s + r.taxa * r.headcountMedio, 0) / totalHC
+    : 0;
   const totalStatus = calcStatus(totalTaxa);
 
   return (
