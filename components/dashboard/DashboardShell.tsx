@@ -28,63 +28,7 @@ import { InsightBanner } from './InsightBanner';
 import { BigStatsRow } from './BigStatsRow';
 import { TrendChart } from './TrendChart';
 import { RankingChart } from './RankingChart';
-
-// ── Chat placeholder (M6) ─────────────────────────────────────────────────────
-function ChatPlaceholder() {
-  return (
-    <div
-      className="flex flex-col gap-3 rounded-xl p-5 h-full min-h-[400px]"
-      style={{
-        backgroundColor: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <div
-          className="h-2 w-2 rounded-full animate-pulse"
-          style={{ backgroundColor: 'var(--color-accent)' }}
-        />
-        <span
-          className="text-xs font-medium uppercase tracking-wide"
-          style={{ color: 'var(--color-text-secondary)' }}
-        >
-          Chat Analytics
-        </span>
-      </div>
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-        <div
-          className="h-10 w-10 rounded-xl flex items-center justify-center"
-          style={{ backgroundColor: 'var(--color-accent-muted)' }}
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--color-accent)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        </div>
-        <p
-          className="text-sm font-medium"
-          style={{ color: 'var(--color-text-secondary)' }}
-        >
-          Chat Conversacional
-        </p>
-        <p
-          className="text-xs max-w-[180px]"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          Disponível na M6 — perguntas em linguagem natural sobre os dados
-        </p>
-      </div>
-    </div>
-  );
-}
+import { ChatPanel } from './ChatPanel';
 
 // ── Inner dashboard (uses FilterContext) ──────────────────────────────────────
 function DashboardContent() {
@@ -209,9 +153,9 @@ export function DashboardShell() {
             <DashboardContent />
           </main>
 
-          {/* Sidebar — Chat (M6 placeholder) */}
+          {/* Sidebar — Chat */}
           <aside className="hidden xl:flex xl:w-80 xl:flex-col xl:shrink-0">
-            <ChatPlaceholder />
+            <ChatPanel />
           </aside>
         </div>
       </div>

@@ -190,20 +190,19 @@ export type IndiceInsights = Record<string, InsightPreGerado>;
 
 // ─── Chat conversacional ─────────────────────────────────────────────────────
 
+/** Gráfico inline que a IA indica na resposta — usa os mesmos componentes M4 */
+export type ChatGraph =
+  | { type: 'trend'; tendencia: ResultadoTendencia; projecao: ResultadoProjecao; meta: number }
+  | { type: 'ranking'; data: ResultadoRanking }
+  | { type: 'breakdown'; data: ResultadoBreakdown };
+
 /** Mensagem no histórico do chat */
 export interface MensagemChat {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  timestamp: Date;
-  grafico?: EspecificacaoGrafico;
-}
-
-/** Especificação do gráfico que a IA retorna junto com a resposta */
-export interface EspecificacaoGrafico {
-  tipo: 'linha' | 'area' | 'barra' | 'barraHorizontal' | 'pie';
-  titulo: string;
-  dados: unknown; // tipado pelo componente de renderização
+  graph?: ChatGraph;
+  streaming?: boolean;
 }
 
 /** Estado do filtro ativo — compartilhado entre dashboard e chat */

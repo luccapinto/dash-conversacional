@@ -25,6 +25,7 @@ interface TrendChartProps {
   projecao: ResultadoProjecao;
   meta: number;
   narrativeTitle?: string;
+  compact?: boolean;
 }
 
 interface ChartDataPoint {
@@ -37,7 +38,7 @@ function fmt(v: number) {
   return `${(v * 100).toFixed(2)}%`;
 }
 
-export function TrendChart({ tendencia, projecao, meta, narrativeTitle }: TrendChartProps) {
+export function TrendChart({ tendencia, projecao, meta, narrativeTitle, compact }: TrendChartProps) {
   // Combina série histórica + pontos projetados
   const historico: ChartDataPoint[] = tendencia.serie.map((p) => ({
     label: p.label,
@@ -77,6 +78,102 @@ export function TrendChart({ tendencia, projecao, meta, narrativeTitle }: TrendC
   const chartData = [...merged.values()];
   const metaPct = parseFloat((meta * 100).toFixed(3));
 
+  const chart = (
+    <ResponsiveContainer width="100%" height={compact ? 180 : 280}>
+      <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid
+          strokeDasharray="3 3"
+          stroke="var(--color-border)"
+          vertical={false}
+        />
+        <XAxis
+          dataKey="label"
+          tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          interval={compact ? 5 : 3}
+        />
+        <YAxis
+          tickFormatter={(v) => `${v.toFixed(1)}%`}
+          tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          width={44}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: 'var(--color-surface-raised)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '8px',
+            color: 'var(--color-text-primary)',
+            fontSize: 12,
+          }}
+          formatter={(value, name) => {
+            const v = typeof value === 'number' ? value : Number(value);
+            const n = String(name);
+            const labels: Record<string, string> = {
+              taxa: 'Turnover',
+              projetado: 'Projetado',
+            };
+            return [`${v.toFixed(2)}%`, labels[n] ?? n];
+          }}
+        />
+        {!compact && (
+          <Legend
+            wrapperStyle={{ fontSize: 11, color: 'var(--color-text-secondary)' }}
+            formatter={(value) => {
+              const labels: Record<string, string> = {
+                taxa: 'Turnover histórico',
+                projetado: 'Projeção (Jan–Mar/25)',
+              };
+              return labels[value] ?? value;
+            }}
+          />
+        )}
+
+        <ReferenceLine
+          y={metaPct}
+          stroke="var(--color-warn)"
+          strokeDasharray="5 3"
+          strokeWidth={1.5}
+          label={{
+            value: `Meta ${fmt(meta)}`,
+            position: 'insideTopRight',
+            fill: 'var(--color-warn-text)',
+            fontSize: 10,
+          }}
+        />
+
+        <Area
+          type="monotone"
+          dataKey="taxa"
+          stroke="var(--color-chart-1)"
+          strokeWidth={2}
+          fill="var(--color-chart-1)"
+          fillOpacity={0.08}
+          dot={false}
+          activeDot={{ r: 4, fill: 'var(--color-chart-1)' }}
+          connectNulls={false}
+        />
+
+        <Area
+          type="monotone"
+          dataKey="projetado"
+          stroke="var(--color-chart-2)"
+          strokeWidth={2}
+          strokeDasharray="6 3"
+          fill="var(--color-chart-2)"
+          fillOpacity={0.06}
+          dot={false}
+          activeDot={{ r: 4, fill: 'var(--color-chart-2)' }}
+          connectNulls={false}
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+
+  if (compact) return chart;
+
   return (
     <Card>
       <CardHeader>
@@ -88,99 +185,7 @@ export function TrendChart({ tendencia, projecao, meta, narrativeTitle }: TrendC
           Jan/23 – Mar/25
         </span>
       </CardHeader>
-
-      <ResponsiveContainer width="100%" height={280}>
-        <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="var(--color-border)"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="label"
-            tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
-            tickLine={false}
-            axisLine={false}
-            interval={3}
-          />
-          <YAxis
-            tickFormatter={(v) => `${v.toFixed(1)}%`}
-            tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
-            tickLine={false}
-            axisLine={false}
-            width={44}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'var(--color-surface-raised)',
-              border: '1px solid var(--color-border)',
-              borderRadius: '8px',
-              color: 'var(--color-text-primary)',
-              fontSize: 12,
-            }}
-            formatter={(value, name) => {
-              const v = typeof value === 'number' ? value : Number(value);
-              const n = String(name);
-              const labels: Record<string, string> = {
-                taxa: 'Turnover',
-                projetado: 'Projetado',
-              };
-              return [`${v.toFixed(2)}%`, labels[n] ?? n];
-            }}
-          />
-          <Legend
-            wrapperStyle={{ fontSize: 11, color: 'var(--color-text-secondary)' }}
-            formatter={(value) => {
-              const labels: Record<string, string> = {
-                taxa: 'Turnover histórico',
-                projetado: 'Projeção (Jan–Mar/25)',
-              };
-              return labels[value] ?? value;
-            }}
-          />
-
-          {/* Meta — linha tracejada horizontal */}
-          <ReferenceLine
-            y={metaPct}
-            stroke="var(--color-warn)"
-            strokeDasharray="5 3"
-            strokeWidth={1.5}
-            label={{
-              value: `Meta ${fmt(meta)}`,
-              position: 'insideTopRight',
-              fill: 'var(--color-warn-text)',
-              fontSize: 10,
-            }}
-          />
-
-          {/* Área de fundo — série histórica */}
-          <Area
-            type="monotone"
-            dataKey="taxa"
-            stroke="var(--color-chart-1)"
-            strokeWidth={2}
-            fill="var(--color-chart-1)"
-            fillOpacity={0.08}
-            dot={false}
-            activeDot={{ r: 4, fill: 'var(--color-chart-1)' }}
-            connectNulls={false}
-          />
-
-          {/* Área projetada — tom diferente */}
-          <Area
-            type="monotone"
-            dataKey="projetado"
-            stroke="var(--color-chart-2)"
-            strokeWidth={2}
-            strokeDasharray="6 3"
-            fill="var(--color-chart-2)"
-            fillOpacity={0.06}
-            dot={false}
-            activeDot={{ r: 4, fill: 'var(--color-chart-2)' }}
-            connectNulls={false}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
+      {chart}
     </Card>
   );
 }
