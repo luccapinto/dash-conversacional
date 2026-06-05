@@ -1,25 +1,13 @@
 'use client';
 
-/**
- * DashboardShell — layout principal do dashboard executivo.
- *
- * Client Component: gerencia estado de filtros (periodo, diretoria, tipo)
- * via FilterContext + estado local de tipo de desligamento.
- * Chama as funções de cálculo para derivar dados sempre que os filtros mudam.
- * Os dados calculados são passados como props serializáveis para os
- * componentes de exibição.
- */
-
 import { useState } from 'react';
 import { FilterProvider, useFilter } from '@/lib/context/FilterContext';
 import { useInsight } from '@/lib/hooks/useInsight';
 import {
-  getTurnoverRate,
   getTrend,
   getProjection,
   rankDiretoriasByTurnover,
   breakdownByDimension,
-  getHeadcount,
   META_TURNOVER_MENSAL,
 } from '@/lib/calculations';
 import type { TipoDesligamento } from '@/lib/types';
@@ -38,13 +26,9 @@ function DashboardContent() {
 
   const tipoFiltro = tipo !== 'todos' ? tipo : undefined;
 
-  // Cálculos via funções da camada semântica
-  const turnover = getTurnoverRate(periodo, diretoria, tipoFiltro);
   const tendencia = getTrend(diretoria, periodo, tipoFiltro);
-  const projecao = getProjection(diretoria, tipoFiltro);
-  const headcount = getHeadcount(periodo, diretoria);
+  const projecao  = getProjection(diretoria, tipoFiltro);
 
-  // Gráfico 2: ranking geral ou breakdown por diretoria
   const isGeralView = diretoria === 'Geral';
   const rankingData = isGeralView
     ? rankDiretoriasByTurnover(periodo, tipoFiltro)
@@ -53,48 +37,24 @@ function DashboardContent() {
     ? breakdownByDimension(periodo, diretoria, 'especialidade', tipoFiltro)
     : null;
 
-  // Substitui headcountMedio do turnover pelo valor mais preciso do getHeadcount
-  const turnoverComHC = {
-    ...turnover,
-    headcountMedio: headcount.headcountFim || turnover.headcountMedio,
-  };
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Filtros */}
       <FilterBar tipo={tipo} onTipoChange={setTipo} />
-
-      {/* Banner de manchete IA */}
       <InsightBanner insight={insight} loading={insightLoading} />
+      <BigStatsRow tendencia={tendencia} projecao={projecao} periodo={periodo} />
 
-      {/* Big Numbers */}
-      <BigStatsRow
-        turnover={turnoverComHC}
-        tendencia={tendencia}
-        projecao={projecao}
-      />
-
-      {/* Gráficos */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <TrendChart
           tendencia={tendencia}
           projecao={projecao}
           meta={META_TURNOVER_MENSAL}
           narrativeTitle={insight?.titulos.graficoTendencia}
+          periodo={periodo}
         />
-
         {isGeralView && rankingData ? (
-          <RankingChart
-            mode="ranking"
-            data={rankingData}
-            narrativeTitle={insight?.titulos.graficoRanking}
-          />
+          <RankingChart mode="ranking" data={rankingData} periodo={periodo} narrativeTitle={insight?.titulos.graficoRanking} />
         ) : breakdownData ? (
-          <RankingChart
-            mode="breakdown"
-            data={breakdownData}
-            narrativeTitle={insight?.titulos.graficoRanking}
-          />
+          <RankingChart mode="breakdown" data={breakdownData} periodo={periodo} narrativeTitle={insight?.titulos.graficoRanking} />
         ) : null}
       </div>
     </div>
@@ -103,63 +63,117 @@ function DashboardContent() {
 
 // ── Shell público ─────────────────────────────────────────────────────────────
 export function DashboardShell() {
+  const [chatOpen, setChatOpen] = useState(false);
+
   return (
     <FilterProvider>
       <div className="flex min-h-screen flex-col" style={{ backgroundColor: 'var(--color-canvas)' }}>
+
         {/* Header */}
         <header
-          className="sticky top-0 z-10 flex items-center justify-between px-6 py-4"
-          style={{
-            backgroundColor: 'var(--color-surface)',
-            borderBottom: '1px solid var(--color-border)',
-          }}
+          className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4"
+          style={{ backgroundColor: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}
         >
           <div className="flex flex-col">
-            <span
-              className="text-base font-bold tracking-tight"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
+            <span className="text-base font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
               Verta S.A.
             </span>
-            <span
-              className="text-xs"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
               People Analytics
             </span>
           </div>
 
-          {/* Indicador de status */}
-          <div
-            className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs"
-            style={{
-              backgroundColor: 'var(--color-surface-raised)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text-muted)',
-            }}
-          >
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{ backgroundColor: 'var(--color-good)' }}
-            />
-            Dados atualizados · Dez 2024
+          <div className="flex items-center gap-2">
+            {/* Status pill */}
+            <div
+              className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs"
+              style={{ backgroundColor: 'var(--color-surface-raised)', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'var(--color-good)' }} />
+              <span className="hidden sm:inline">Dados atualizados · </span>Dez 2024
+            </div>
+
+            {/* Chat button — visible on mobile only */}
+            <button
+              onClick={() => setChatOpen(true)}
+              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold lg:hidden"
+              style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+              aria-label="Abrir chat"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Chat IA
+            </button>
           </div>
         </header>
 
         {/* Conteúdo principal */}
-        <div className="flex flex-1 gap-4 p-6">
-          {/* Dashboard area */}
+        <div className="flex flex-1 gap-4 p-3 sm:p-6">
           <main className="flex-1 min-w-0">
             <DashboardContent />
           </main>
 
-          {/* Sidebar — Chat */}
+          {/* Sidebar chat — desktop only */}
           <aside className="hidden lg:block lg:w-72 lg:shrink-0">
-            <div className="sticky top-[72px] h-[calc(100vh-96px)]">
+            <div className="sticky top-[68px] h-[calc(100vh-92px)]">
               <ChatPanel />
             </div>
           </aside>
         </div>
+
+        {/* Mobile chat drawer ──────────────────────────────────────────────── */}
+        {chatOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-40 lg:hidden"
+              style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+              onClick={() => setChatOpen(false)}
+            />
+
+            {/* Bottom sheet */}
+            <div
+              className="fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-2xl lg:hidden"
+              style={{
+                height: '88vh',
+                backgroundColor: 'var(--color-surface)',
+                borderTop: '1px solid var(--color-border)',
+              }}
+            >
+              {/* Drag handle + title + close */}
+              <div
+                className="flex shrink-0 items-center justify-between px-4 py-3"
+                style={{ borderBottom: '1px solid var(--color-border)' }}
+              >
+                <div className="flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                    Assistente IA
+                  </span>
+                </div>
+                <button
+                  onClick={() => setChatOpen(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full"
+                  style={{ backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-text-muted)' }}
+                  aria-label="Fechar chat"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* ChatPanel fills the rest */}
+              <div className="flex-1 overflow-hidden">
+                <ChatPanel />
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </FilterProvider>
   );
