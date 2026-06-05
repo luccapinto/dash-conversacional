@@ -16,8 +16,8 @@ const MAX_TOOL_ITERATIONS = 4;
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(periodo: Periodo, diretoria: Diretoria): string {
-  const periodoDesc: Record<Periodo, string> = {
+function describePeriodo(periodo: Periodo): string {
+  const fixed: Partial<Record<Periodo, string>> = {
     '12m': 'Jan–Dez/2024 (ano completo)',
     '6m':  'Jul–Dez/2024 (2º semestre)',
     '3m':  'Out–Dez/2024 (4º trimestre)',
@@ -25,22 +25,33 @@ function buildSystemPrompt(periodo: Periodo, diretoria: Diretoria): string {
     'q2':  'Abr–Jun/2024 (2º trimestre)',
     'q3':  'Jul–Set/2024 (3º trimestre)',
     'q4':  'Out–Dez/2024 (4º trimestre)',
+    '2023': 'Jan–Dez/2023 (ano completo)',
   };
+  if (fixed[periodo]) return fixed[periodo]!;
+  // YYYY-MM monthly period
+  const m = /^(\d{4})-(\d{2})$/.exec(periodo);
+  if (m) {
+    const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return `${months[parseInt(m[2]) - 1]}/${m[1]}`;
+  }
+  return periodo;
+}
 
+function buildSystemPrompt(periodo: Periodo, diretoria: Diretoria): string {
   return `Você é o assistente de People Analytics da Verta S.A., empresa de mercado financeiro.
 Responde perguntas sobre turnover, retenção e desligamentos com base exclusivamente nos dados disponíveis via funções.
 
 REGRAS — NUNCA IGNORE:
 1. NUNCA invente números. Use sempre as funções para buscar dados reais.
 2. Para qualquer pergunta com "cresceu", "aumentou", "piorou", "está alto", "tendência", "desde quando", "escalada", "evolução" → chame getTrend OBRIGATORIAMENTE antes de qualquer afirmação.
-3. Para "por que?" → getTrend primeiro, depois breakdownByDimension (posicionamentoFaixa + nivelPerformance).
+3. Para "por que?" → getTrend primeiro, depois breakdownByDimension (especialidade + nivelPerformance).
 4. Perguntas fora do escopo dos dados: diga claramente que não tem essa informação.
 5. Responda em português brasileiro, tom executivo e direto. Máximo 3 parágrafos curtos.
 6. Use os números que as funções retornam. Não mencione "as funções" — fale como quem conhece os dados diretamente.
 7. Meta mensal de turnover: ${(META_TURNOVER_MENSAL * 100).toFixed(1)}% ao mês.
 
 CONTEXTO DO FILTRO ATIVO:
-- Período: ${periodo} → ${periodoDesc[periodo]}
+- Período: ${periodo} → ${describePeriodo(periodo)}
 - Diretoria em foco: ${diretoria === 'Geral' ? 'empresa toda' : diretoria}
 - Referência temporal dos dados: Dezembro de 2024
 

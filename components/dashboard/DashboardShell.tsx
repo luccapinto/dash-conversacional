@@ -50,7 +50,7 @@ function DashboardContent() {
     ? rankDiretoriasByTurnover(periodo, tipoFiltro)
     : null;
   const breakdownData = !isGeralView
-    ? breakdownByDimension(periodo, diretoria, 'posicionamentoFaixa', tipoFiltro)
+    ? breakdownByDimension(periodo, diretoria, 'especialidade', tipoFiltro)
     : null;
 
   // Substitui headcountMedio do turnover pelo valor mais preciso do getHeadcount
@@ -154,8 +154,10 @@ export function DashboardShell() {
           </main>
 
           {/* Sidebar — Chat */}
-          <aside className="hidden xl:flex xl:w-80 xl:flex-col xl:shrink-0">
-            <ChatPanel />
+          <aside className="hidden lg:block lg:w-72 lg:shrink-0">
+            <div className="sticky top-[72px] h-[calc(100vh-96px)]">
+              <ChatPanel />
+            </div>
           </aside>
         </div>
       </div>
