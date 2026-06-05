@@ -72,6 +72,7 @@ function DashboardContent() {
         turnover={turnoverComHC}
         tendencia={tendencia}
         projecao={projecao}
+        periodo={periodo}
       />
 
       {/* Gráficos */}
@@ -81,6 +82,7 @@ function DashboardContent() {
           projecao={projecao}
           meta={META_TURNOVER_MENSAL}
           narrativeTitle={insight?.titulos.graficoTendencia}
+          periodo={periodo}
         />
 
         {isGeralView && rankingData ? (

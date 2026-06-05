@@ -472,6 +472,14 @@ export function breakdownByDimension(
  * @param periodo   - Período de análise
  * @param diretoria - Diretoria ou 'Geral'
  */
+/** Retorna os meses do período selecionado (útil para highlighting no chart) */
+export function getMesesPeriodo(periodo: Periodo): string[] {
+  return resolvePeriodo(periodo).mesesAtual;
+}
+
+/** Meta anual: meta_mensal × 12 */
+export const META_TURNOVER_ANUAL = META_TURNOVER_MENSAL * 12;
+
 export function getHeadcount(
   periodo: Periodo,
   diretoria: Diretoria = 'Geral',
