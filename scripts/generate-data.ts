@@ -105,6 +105,22 @@ interface HeadcountMensal {
   headcountFim: number;
 }
 
+/**
+ * Composição da força de trabalho ATIVA (quem ficou) por dimensão.
+ *
+ * Sem isto, só conseguimos calcular a *composição* de quem saiu
+ * ("60% dos desligados eram júnior") — nunca a *taxa* por segmento
+ * ("júniors saem 2× mais") nem o *lift* (índice de sobre-representação).
+ *
+ * `distribuicoes[dimensao][valor]` = fração do headcount naquele valor.
+ * As taxas reais por segmento e os drivers (lib/calculations) derivam daqui.
+ */
+interface PopulacaoDiretoria {
+  diretoria: Diretoria | 'Geral';
+  headcountMedio: number;
+  distribuicoes: Record<string, Record<string, number>>;
+}
+
 // ── Estrutura da Verta S.A. ───────────────────────────────────────────────────
 
 const ESTRUTURA = {
@@ -229,6 +245,20 @@ const SALARIOS: Record<Senioridade, Record<PosicionamentoFaixa, Record<Diretoria
     teto:    { Tecnologia: 160000, 'Distribuição & Assessoria': 140000, Operações: 125000, 'Financeiro & Risco': 150000, Gente: 110000, 'Produtos & Plataforma': 145000 },
   },
 };
+
+// ── Composição base da população ativa (quem fica) ────────────────────────────
+// Distribuições do workforce ATIVO por dimensão. Calibradas para serem
+// realistas E para que o lift (composição de saídas ÷ composição da população)
+// revele as histórias plantadas: ex. alta performance e piso/q1 estão
+// sub-representados na população, então quando dominam as saídas o lift dispara.
+// senioridade, modalidade e especialidade vêm de ESTRUTURA (já são da população).
+
+const POP_BASE = {
+  posicionamentoFaixa: { piso: 0.08, q1: 0.20, mediana: 0.42, q3: 0.20, teto: 0.10 },
+  nivelPerformance:    { abaixo: 0.10, dentro: 0.62, acima: 0.28 },
+  clusterLideranca:    { 'contribuidor individual': 0.82, 'líder de CI': 0.13, 'líder de líderes': 0.05 },
+  nivelSatisfacao:     { baixo: 0.15, médio: 0.50, alto: 0.35 },
+} as const;
 
 // ── Taxa de turnover mensal por diretoria ─────────────────────────────────────
 // Cada função recebe monthIndex (1 = Jan/2023 … 24 = Dez/2024) e um valor de
@@ -451,11 +481,57 @@ function main() {
     }
   }
 
+  // ── Composição da população ativa por diretoria + Geral ──────────────────────
+  const SENIORIDADES_POP: Senioridade[] = ['júnior', 'pleno', 'sênior', 'gerência', 'diretoria'];
+  const MODALIDADES_POP: Modalidade[]   = ['presencial', 'híbrido', 'remoto'];
+
+  function avgHeadcount(dir: Diretoria): number {
+    const rows = headcountData.filter(h => h.diretoria === dir);
+    return rows.reduce((s, h) => s + h.headcountInicio, 0) / rows.length;
+  }
+
+  const populacao: PopulacaoDiretoria[] = diretorias.map(dir => {
+    const est = ESTRUTURA[dir];
+    const senioridade = Object.fromEntries(SENIORIDADES_POP.map((s, i) => [s, est.senDist[i]]));
+    const modalidadeTrabalho = Object.fromEntries(MODALIDADES_POP.map((m, i) => [m, est.modalDist[i]]));
+    const espTotal = est.especialidades.reduce((s, e) => s + e.peso, 0);
+    const especialidade = Object.fromEntries(est.especialidades.map(e => [e.nome, e.peso / espTotal]));
+    return {
+      diretoria: dir,
+      headcountMedio: Math.round(avgHeadcount(dir)),
+      distribuicoes: {
+        senioridade,
+        posicionamentoFaixa: { ...POP_BASE.posicionamentoFaixa },
+        nivelPerformance:    { ...POP_BASE.nivelPerformance },
+        clusterLideranca:    { ...POP_BASE.clusterLideranca },
+        nivelSatisfacao:     { ...POP_BASE.nivelSatisfacao },
+        modalidadeTrabalho,
+        especialidade,
+      },
+    };
+  });
+
+  // Geral = média das distribuições ponderada pelo headcount médio de cada diretoria
+  const hcTotalGeral = populacao.reduce((s, p) => s + p.headcountMedio, 0);
+  const geralDist: Record<string, Record<string, number>> = {};
+  for (const dim of ['senioridade', 'posicionamentoFaixa', 'nivelPerformance', 'clusterLideranca', 'nivelSatisfacao', 'modalidadeTrabalho']) {
+    const acc: Record<string, number> = {};
+    for (const p of populacao) {
+      for (const [valor, share] of Object.entries(p.distribuicoes[dim])) {
+        acc[valor] = (acc[valor] ?? 0) + share * p.headcountMedio;
+      }
+    }
+    for (const k of Object.keys(acc)) acc[k] = parseFloat((acc[k] / hcTotalGeral).toFixed(4));
+    geralDist[dim] = acc;
+  }
+  populacao.unshift({ diretoria: 'Geral', headcountMedio: Math.round(hcTotalGeral), distribuicoes: geralDist });
+
   // ── Gravar outputs ──────────────────────────────────────────────────────────
   const dataDir = path.join(process.cwd(), 'lib', 'data');
   fs.mkdirSync(dataDir, { recursive: true });
   fs.writeFileSync(path.join(dataDir, 'desligamentos.json'), JSON.stringify(desligamentos));
   fs.writeFileSync(path.join(dataDir, 'headcount.json'), JSON.stringify(headcountData));
+  fs.writeFileSync(path.join(dataDir, 'populacao.json'), JSON.stringify(populacao));
 
   // ── Validação de sanidade ──────────────────────────────────────────────────
   console.log('\n══ Validação do Dataset — Verta S.A. ══════════════════════════════');
@@ -523,7 +599,14 @@ function main() {
     diretorias: stats,
   }, null, 2));
 
-  console.log('\n✓ Arquivos gerados: lib/data/desligamentos.json, headcount.json, meta.json');
+  // ── Validação da população (lift sanity-check) ──────────────────────────────
+  console.log('\n── Validação de população / lift ────────────────────────────────────');
+  const popTech = populacao.find(p => p.diretoria === 'Tecnologia')!;
+  const techS2Acima = techS2.filter(d => d.nivelPerformance === 'acima').length / techS2.length;
+  const liftAcima = techS2Acima / popTech.distribuicoes.nivelPerformance['acima'];
+  console.log(`Tech 2023-S2 — alta performance: ${(techS2Acima * 100).toFixed(0)}% das saídas vs ${(popTech.distribuicoes.nivelPerformance['acima'] * 100).toFixed(0)}% da população → lift ${liftAcima.toFixed(1)}× (esperado > 2×)`);
+
+  console.log('\n✓ Arquivos gerados: lib/data/desligamentos.json, headcount.json, populacao.json, meta.json');
 }
 
 main();

@@ -7,13 +7,48 @@ import {
   rankDiretoriasByTurnover,
   breakdownByDimension,
   getHeadcount,
+  getSegmentRates,
+  getDrivers,
+  crossBreakdown,
+  compareGroups,
+  getCohortByTenure,
+  quantifyCost,
+  getRegrettedAttrition,
   META_TURNOVER_MENSAL,
 } from '@/lib/calculations';
 import { TOOL_DEFINITIONS } from '@/lib/calculations/toolDefinitions';
-import type { Periodo, Diretoria, TipoDesligamento, ChatGraph, DimensaoBreakdown } from '@/lib/types';
+import type {
+  Periodo, Diretoria, TipoDesligamento, ChatGraph, DimensaoBreakdown,
+  ResultadoDrivers, ResultadoSegmentRates, ResultadoCohort, ResultadoCrossBreakdown,
+  ResultadoComparacao, BarItem,
+} from '@/lib/types';
 
-const MODEL = process.env.OPENROUTER_MODEL ?? 'meta-llama/llama-3.1-8b-instruct';
-const MAX_TOOL_ITERATIONS = 4;
+// Streaming + múltiplas chamadas sequenciais ao modelo exigem Node runtime e
+// janela de execução maior que o default do Vercel.
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+const MODEL = process.env.OPENROUTER_MODEL ?? 'anthropic/claude-3.5-sonnet';
+const MAX_TOOL_ITERATIONS = 5;
+
+// ── Rate limiting (in-memory, por instância) ───────────────────────────────────
+// Proteção mínima contra abuso da chave OpenRouter num endpoint público.
+// Limitação conhecida: o estado é por instância serverless (não global).
+const RATE_LIMIT = 20;          // requisições
+const RATE_WINDOW_MS = 60_000;  // por minuto
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || now > bucket.resetAt) {
+    rateBuckets.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  if (bucket.count >= RATE_LIMIT) return false;
+  bucket.count++;
+  return true;
+}
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 
@@ -29,7 +64,6 @@ function describePeriodo(periodo: Periodo): string {
     '2023': 'Jan–Dez/2023 (ano completo)',
   };
   if (fixed[periodo]) return fixed[periodo]!;
-  // YYYY-MM monthly period
   const m = /^(\d{4})-(\d{2})$/.exec(periodo);
   if (m) {
     const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -39,29 +73,37 @@ function describePeriodo(periodo: Periodo): string {
 }
 
 function buildSystemPrompt(periodo: Periodo, diretoria: Diretoria): string {
-  return `Você é o assistente de People Analytics da Verta S.A., empresa de mercado financeiro.
-Responde perguntas sobre turnover, retenção e desligamentos com base exclusivamente nos dados disponíveis via funções.
+  return `Você é o analista sênior de People Analytics da Verta S.A., empresa de mercado financeiro.
+Responde sobre turnover, retenção e desligamentos usando EXCLUSIVAMENTE os dados que vêm das funções.
 
-REGRAS — NUNCA IGNORE:
-1. NUNCA invente números. Use sempre as funções para buscar dados reais.
-2. Para qualquer pergunta com "cresceu", "aumentou", "piorou", "está alto", "tendência", "desde quando", "escalada", "evolução" → chame getTrend OBRIGATORIAMENTE antes de qualquer afirmação.
-3. Para "por que?" → getTrend primeiro, depois breakdownByDimension (especialidade + nivelPerformance).
-4. Perguntas fora do escopo dos dados: diga claramente que não tem essa informação.
-5. Responda em português brasileiro, tom executivo e direto. Máximo 3 parágrafos curtos.
-6. Use os números das funções. Não mencione "as funções" — fale como quem conhece os dados diretamente.
+PRINCÍPIOS:
+1. Nunca invente números. Todo dado vem de uma função — encadeie quantas precisar para uma resposta completa.
+2. Pense como analista, não como tabela: confirme a tendência, ache a causa, quantifique o impacto e aponte a ação.
+3. Distinga COMPOSIÇÃO de TAXA. "60% das saídas eram júnior" (composição) ≠ "júniors saem 2× mais" (taxa). Para taxa real por perfil use getSegmentRates ou getDrivers — eles usam a população ativa como base e retornam o lift (sobre-representação).
+4. Trate amostras pequenas com cautela: se uma fatia tem poucos desligamentos, sinalize a incerteza em vez de cravar conclusão.
+5. Português brasileiro, tom executivo. Vá direto ao ponto, mas seja completo.
 
-TAXA MENSAL vs YTD — DIFERENÇA CRÍTICA:
-- getTurnoverRate → taxa MENSAL pontual (~2–4% por mês). Use para "qual o turnover de dezembro?", "como estamos este mês?".
-- getYTD → taxa ACUMULADA no ano (~24–36% para o ano completo). Meta YTD cresce: ${(META_TURNOVER_MENSAL * 100).toFixed(1)}%/mês × meses (ex: 12% em junho, 24% em dezembro).
-- Para qualquer pergunta com "YTD", "acumulado", "no ano", "desde janeiro", "acumulado do ano" → chame getYTD, NUNCA getTurnoverRate.
-- Ao responder sobre YTD: mencione a taxa acumulada (ex: "36%") E a meta YTD do período (ex: "meta de 24% para o ano").
+COMO ESCOLHER A FUNÇÃO:
+- "cresceu / aumentou / piorou / tendência / desde quando" → getTrend.
+- "por que / o que está puxando / qual perfil sai mais" → getDrivers (diagnóstico multivariado por lift). Aprofunde com getSegmentRates ou crossBreakdown.
+- "quanto custa / impacto financeiro" → quantifyCost.
+- "estamos perdendo os melhores / perda de talento" → getRegrettedAttrition.
+- "estamos perdendo gente nova / em quanto tempo saem" → getCohortByTenure.
+- "X vs Y / como se compara" → compareGroups.
+- "YTD / acumulado / no ano" → getYTD (a meta YTD cresce: ${(META_TURNOVER_MENSAL * 100).toFixed(1)}%/mês × meses). NUNCA use getTurnoverRate para YTD.
+- "como estamos / qual o turnover" (valor pontual) → getTurnoverRate.
+
+FORMATO DA RESPOSTA (a interface renderiza Markdown):
+- Use **negrito** nos números-chave e nas conclusões.
+- Use listas com "- " para enumerar fatores/causas.
+- Use tabelas Markdown quando comparar 3+ itens (ex: ranking, drivers, comparações).
+- Um gráfico pode ser anexado automaticamente — não descreva o gráfico, complemente-o com a leitura.
 
 CONTEXTO DO FILTRO ATIVO:
 - Período: ${periodo} → ${describePeriodo(periodo)}
 - Diretoria em foco: ${diretoria === 'Geral' ? 'empresa toda' : diretoria}
 - Referência temporal dos dados: Dezembro de 2024
-
-Use o período e diretoria acima como padrão para as funções, salvo pedido explícito do usuário.`;
+Use o período e a diretoria acima como padrão nas funções, salvo pedido explícito do usuário.`;
 }
 
 // ── Tool execution ────────────────────────────────────────────────────────────
@@ -88,9 +130,47 @@ function executeTool(name: string, args: ToolArgs): unknown {
       return getYTD(periodo, diretoria, tipo);
     case 'getHeadcount':
       return getHeadcount(periodo, diretoria);
+    case 'getSegmentRates':
+      return getSegmentRates(periodo, diretoria, args.dimensao as DimensaoBreakdown, tipo);
+    case 'getDrivers':
+      return getDrivers(periodo, diretoria, tipo);
+    case 'crossBreakdown':
+      return crossBreakdown(periodo, diretoria, args.dimensao1 as DimensaoBreakdown, args.dimensao2 as DimensaoBreakdown, tipo);
+    case 'compareGroups':
+      return compareGroups(
+        args.periodoA as Periodo, args.diretoriaA as Diretoria,
+        args.periodoB as Periodo, args.diretoriaB as Diretoria, tipo);
+    case 'getCohortByTenure':
+      return getCohortByTenure(periodo, diretoria, tipo);
+    case 'quantifyCost':
+      return quantifyCost(periodo, diretoria, tipo);
+    case 'getRegrettedAttrition':
+      return getRegrettedAttrition(periodo, diretoria);
     default:
       throw new Error(`Função desconhecida: ${name}`);
   }
+}
+
+/** Rótulo amigável de progresso enquanto a função roda */
+function progressLabel(name: string, args: ToolArgs): string {
+  const dir = (args.diretoria as string | undefined) ?? (args.diretoriaA as string | undefined) ?? 'a empresa';
+  const labels: Record<string, string> = {
+    getTurnoverRate: `Calculando o turnover de ${dir}…`,
+    getTrend: `Analisando a tendência de ${dir}…`,
+    getProjection: `Projetando os próximos meses…`,
+    rankDiretoriasByTurnover: `Ranqueando as diretorias…`,
+    breakdownByDimension: `Detalhando por ${args.dimensao ?? 'dimensão'}…`,
+    getYTD: `Apurando o acumulado do ano…`,
+    getHeadcount: `Levantando o headcount…`,
+    getSegmentRates: `Calculando taxas reais por ${args.dimensao ?? 'segmento'}…`,
+    getDrivers: `Diagnosticando os drivers de ${dir}…`,
+    crossBreakdown: `Cruzando ${args.dimensao1 ?? ''} × ${args.dimensao2 ?? ''}…`,
+    compareGroups: `Comparando os recortes…`,
+    getCohortByTenure: `Analisando saída por tempo de casa…`,
+    quantifyCost: `Quantificando o custo do turnover…`,
+    getRegrettedAttrition: `Medindo a perda de talento…`,
+  };
+  return labels[name] ?? `Consultando os dados…`;
 }
 
 // ── Graph spec derivation ────────────────────────────────────────────────────
@@ -98,12 +178,13 @@ function executeTool(name: string, args: ToolArgs): unknown {
 type ToolResult = { name: string; args: ToolArgs; result: unknown };
 
 function deriveGraphSpec(toolResults: ToolResult[]): ChatGraph | null {
-  const trend = toolResults.find(r => r.name === 'getTrend');
+  const find = (n: string) => toolResults.find(r => r.name === n);
+
+  const trend = find('getTrend');
   if (trend) {
     const dir = (trend.args.diretoria as Diretoria | undefined) ?? 'Geral';
     const tipo = trend.args.tipoDesligamento as TipoDesligamento | undefined;
-    const projecaoResult = toolResults.find(r => r.name === 'getProjection')?.result
-      ?? getProjection(dir, tipo);
+    const projecaoResult = find('getProjection')?.result ?? getProjection(dir, tipo);
     return {
       type: 'trend',
       tendencia: trend.result as ChatGraph extends { type: 'trend' } ? ChatGraph['tendencia'] : never,
@@ -111,10 +192,105 @@ function deriveGraphSpec(toolResults: ToolResult[]): ChatGraph | null {
       meta: META_TURNOVER_MENSAL,
     };
   }
-  const ranking = toolResults.find(r => r.name === 'rankDiretoriasByTurnover');
+
+  const ranking = find('rankDiretoriasByTurnover');
   if (ranking) return { type: 'ranking', data: ranking.result as never };
 
-  const breakdown = toolResults.find(r => r.name === 'breakdownByDimension');
+  // Drivers → barras de lift (fatores de risco)
+  const drivers = find('getDrivers');
+  if (drivers) {
+    const r = drivers.result as ResultadoDrivers;
+    if (r.fatoresDeRisco.length) {
+      return {
+        type: 'bars',
+        title: 'Fatores de risco — lift vs. o esperado',
+        unit: 'x',
+        data: r.fatoresDeRisco.map<BarItem>(d => ({
+          label: `${d.valor}`,
+          value: d.lift,
+          highlight: d.lift >= 2,
+          sub: `${d.dimensao} · ${(d.taxaSegmento * 100).toFixed(1)}%/mês · n=${d.desligamentos}`,
+        })),
+      };
+    }
+  }
+
+  // Segment rates → barras de lift (ou composição se sem população)
+  const seg = find('getSegmentRates');
+  if (seg) {
+    const r = seg.result as ResultadoSegmentRates;
+    if (r.itens.length) {
+      const usaLift = r.temPopulacaoBase;
+      return {
+        type: 'bars',
+        title: usaLift ? `Lift por ${r.dimensao}` : `Composição por ${r.dimensao}`,
+        unit: usaLift ? 'x' : '%',
+        data: r.itens.map<BarItem>(i => ({
+          label: i.label,
+          value: usaLift ? (i.lift ?? 0) : i.composicaoPct,
+          highlight: usaLift ? (i.lift ?? 0) >= 2 : i.composicaoPct >= 30,
+          sub: i.amostraSuficiente
+            ? (usaLift && i.taxaSegmento !== null ? `${(i.taxaSegmento * 100).toFixed(1)}%/mês · n=${i.desligamentos}` : `n=${i.desligamentos}`)
+            : `amostra baixa · n=${i.desligamentos}`,
+        })),
+      };
+    }
+  }
+
+  // Cohort por tempo de casa → barras de %
+  const cohort = find('getCohortByTenure');
+  if (cohort) {
+    const r = cohort.result as ResultadoCohort;
+    return {
+      type: 'bars',
+      title: 'Saídas por tempo de casa',
+      unit: '%',
+      data: r.buckets.map<BarItem>(b => ({
+        label: b.faixa,
+        value: b.percentual,
+        highlight: b.percentual >= 30,
+        sub: `${b.voluntarioPct}% voluntário · n=${b.desligamentos}`,
+      })),
+    };
+  }
+
+  // Cross-breakdown → barras das células de maior interseção
+  const cross = find('crossBreakdown');
+  if (cross) {
+    const r = cross.result as ResultadoCrossBreakdown;
+    if (r.celulas.length) {
+      return {
+        type: 'bars',
+        title: `${r.dimensao1} × ${r.dimensao2}`,
+        unit: '%',
+        data: r.celulas.slice(0, 8).map<BarItem>((c, i) => ({
+          label: `${c.valor1} × ${c.valor2}`,
+          value: c.percentual,
+          highlight: i === 0,
+          sub: `n=${c.desligamentos}`,
+        })),
+      };
+    }
+  }
+
+  // Comparação → barras das duas taxas
+  const cmp = find('compareGroups');
+  if (cmp) {
+    const r = cmp.result as ResultadoComparacao;
+    return {
+      type: 'bars',
+      title: 'Comparação de turnover (mensal)',
+      unit: '%',
+      data: [r.grupoA, r.grupoB].map<BarItem>(g => ({
+        label: g.rotulo,
+        value: parseFloat((g.taxa * 100).toFixed(2)),
+        highlight: g.rotulo === r.liderTaxa,
+        sub: `${g.voluntarioPct}% vol · ${g.altaPerformancePct}% alta perf`,
+      })),
+    };
+  }
+
+  const breakdown = find('breakdownByDimension');
   if (breakdown) return { type: 'breakdown', data: breakdown.result as never };
 
   return null;
@@ -129,17 +305,17 @@ type OAIMessage = {
   tool_call_id?: string;
 };
 
-async function callOR(messages: OAIMessage[], stream = false, tools = true): Promise<Response> {
+async function callOR(messages: OAIMessage[], stream: boolean, useTools: boolean): Promise<Response> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('OPENROUTER_API_KEY não configurada');
 
   const body: Record<string, unknown> = {
     model: MODEL,
     messages,
-    temperature: 0.15,
+    temperature: 0.2,
     stream,
   };
-  if (tools) {
+  if (useTools) {
     body.tools = TOOL_DEFINITIONS;
     body.tool_choice = 'auto';
   }
@@ -149,23 +325,55 @@ async function callOR(messages: OAIMessage[], stream = false, tools = true): Pro
     headers: {
       Authorization: `Bearer ${key}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://dash-conversacional.vercel.app',
+      'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'https://dash-conversacional.vercel.app',
       'X-Title': 'Verta People Analytics',
     },
     body: JSON.stringify(body),
   });
 }
 
+/** Itera tokens de conteúdo de uma resposta SSE streamada da OpenRouter */
+async function* streamContent(resp: Response): AsyncGenerator<string> {
+  if (!resp.body) return;
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t.startsWith('data:')) continue;
+      const data = t.slice(5).trim();
+      if (data === '[DONE]') return;
+      try {
+        const j = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+        const delta = j.choices?.[0]?.delta?.content;
+        if (delta) yield delta;
+      } catch { /* ignora keep-alives / linhas parciais */ }
+    }
+  }
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
-
-  function sse(obj: unknown) {
-    return encoder.encode(`data: ${JSON.stringify(obj)}\n\n`);
-  }
+  const sse = (obj: unknown) => encoder.encode(`data: ${JSON.stringify(obj)}\n\n`);
+  const done = () => encoder.encode('data: [DONE]\n\n');
 
   try {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'local';
+    if (!checkRateLimit(ip)) {
+      return new Response(
+        `data: ${JSON.stringify({ t: 'e', v: 'Muitas perguntas em sequência. Aguarde um instante e tente de novo.' })}\ndata: [DONE]\n\n`,
+        { status: 429, headers: { 'Content-Type': 'text/event-stream' } }
+      );
+    }
+
     const { messages, periodo, diretoria } = (await req.json()) as {
       messages: Array<{ role: 'user' | 'assistant'; content: string }>;
       periodo: Periodo;
@@ -185,73 +393,79 @@ export async function POST(req: NextRequest) {
       ...messages.map(m => ({ role: m.role, content: m.content })),
     ];
 
-    const toolResults: ToolResult[] = [];
-    let finalText = '';
-
-    // ── Agentic tool-call loop ───────────────────────────────────────────────
-    for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-      const resp = await callOR(history, false, true);
-      if (!resp.ok) {
-        const err = await resp.text();
-        throw new Error(`OpenRouter ${resp.status}: ${err.slice(0, 200)}`);
-      }
-
-      const data = (await resp.json()) as {
-        choices: Array<{
-          finish_reason: string;
-          message: OAIMessage;
-        }>;
-      };
-
-      const msg = data.choices[0].message;
-
-      if (msg.tool_calls?.length) {
-        history.push(msg);
-        for (const tc of msg.tool_calls) {
-          let result: unknown;
-          try {
-            const args = JSON.parse(tc.function.arguments) as ToolArgs;
-            result = executeTool(tc.function.name, args);
-            toolResults.push({ name: tc.function.name, args, result });
-          } catch (e) {
-            result = { error: String(e) };
-          }
-          history.push({
-            role: 'tool',
-            tool_call_id: tc.id,
-            content: JSON.stringify(result),
-          });
-        }
-      } else {
-        finalText = msg.content ?? '';
-        break;
-      }
-    }
-
-    if (!finalText) {
-      finalText = 'Não consegui gerar uma resposta. Tente reformular a pergunta.';
-    }
-
-    const graphSpec = deriveGraphSpec(toolResults);
-
-    // ── Stream response ──────────────────────────────────────────────────────
     const stream = new ReadableStream({
       async start(controller) {
-        // Word-by-word streaming com delay natural
-        const words = finalText.split(/(\s+)/);
-        for (const chunk of words) {
-          if (chunk) {
-            controller.enqueue(sse({ t: 'c', v: chunk }));
-            await new Promise(r => setTimeout(r, 18));
+        const toolResults: ToolResult[] = [];
+        try {
+          // ── Fase de ferramentas (detecção não-streamada) ──────────────────
+          let answeredInline = '';
+          for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+            const resp = await callOR(history, false, true);
+            if (!resp.ok) {
+              const errText = await resp.text();
+              console.error('OpenRouter tool phase error:', resp.status, errText.slice(0, 300));
+              throw new Error('upstream');
+            }
+            const data = (await resp.json()) as { choices: Array<{ message: OAIMessage }> };
+            const msg = data.choices[0].message;
+
+            if (msg.tool_calls?.length) {
+              history.push(msg);
+              for (const tc of msg.tool_calls) {
+                controller.enqueue(sse({ t: 's', v: progressLabel(tc.function.name, safeParse(tc.function.arguments)) }));
+                let result: unknown;
+                try {
+                  const args = safeParse(tc.function.arguments);
+                  result = executeTool(tc.function.name, args);
+                  toolResults.push({ name: tc.function.name, args, result });
+                } catch (e) {
+                  result = { error: String(e) };
+                }
+                history.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+              }
+            } else {
+              answeredInline = msg.content ?? '';
+              break;
+            }
           }
-        }
 
-        if (graphSpec) {
-          controller.enqueue(sse({ t: 'g', v: graphSpec }));
-        }
+          // ── Fase de resposta (streaming real) ─────────────────────────────
+          let streamed = '';
+          if (toolResults.length > 0) {
+            // Sintetiza a resposta final a partir dos dados, em streaming.
+            const resp = await callOR(history, true, false);
+            if (!resp.ok) {
+              const errText = await resp.text();
+              console.error('OpenRouter answer phase error:', resp.status, errText.slice(0, 300));
+              throw new Error('upstream');
+            }
+            for await (const chunk of streamContent(resp)) {
+              streamed += chunk;
+              controller.enqueue(sse({ t: 'c', v: chunk }));
+            }
+          } else {
+            // Sem ferramentas: emite o que o modelo já respondeu.
+            streamed = answeredInline;
+            for (const chunk of answeredInline.split(/(\s+)/)) {
+              if (chunk) controller.enqueue(sse({ t: 'c', v: chunk }));
+            }
+          }
 
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
+          if (!streamed.trim()) {
+            controller.enqueue(sse({ t: 'c', v: 'Não consegui gerar uma resposta. Tente reformular a pergunta.' }));
+          }
+
+          const graphSpec = deriveGraphSpec(toolResults);
+          if (graphSpec) controller.enqueue(sse({ t: 'g', v: graphSpec }));
+
+          controller.enqueue(done());
+          controller.close();
+        } catch (err) {
+          console.error('Chat stream error:', err);
+          controller.enqueue(sse({ t: 'e', v: 'Tive um problema ao consultar os dados agora. Tente de novo em instantes.' }));
+          controller.enqueue(done());
+          controller.close();
+        }
       },
     });
 
@@ -263,10 +477,14 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Chat handler error:', err);
     return new Response(
-      `data: ${JSON.stringify({ t: 'e', v: `Erro: ${msg}` })}\ndata: [DONE]\n\n`,
+      `data: ${JSON.stringify({ t: 'e', v: 'Erro inesperado. Tente novamente.' })}\ndata: [DONE]\n\n`,
       { headers: { 'Content-Type': 'text/event-stream' } }
     );
   }
+}
+
+function safeParse(s: string): ToolArgs {
+  try { return JSON.parse(s) as ToolArgs; } catch { return {}; }
 }

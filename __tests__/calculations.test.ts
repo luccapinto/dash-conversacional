@@ -15,7 +15,15 @@ import {
   rankDiretoriasByTurnover,
   breakdownByDimension,
   getHeadcount,
+  getSegmentRates,
+  getDrivers,
+  crossBreakdown,
+  compareGroups,
+  getCohortByTenure,
+  quantifyCost,
+  getRegrettedAttrition,
   META_TURNOVER_MENSAL,
+  MIN_AMOSTRA,
 } from '@/lib/calculations';
 
 // ── getTurnoverRate ───────────────────────────────────────────────────────────
@@ -257,5 +265,122 @@ describe('getHeadcount', () => {
   it('série mensal de 12m tem 12 pontos', () => {
     const r = getHeadcount('12m', 'Geral');
     expect(r.serieMensal).toHaveLength(12);
+  });
+});
+
+// ── getSegmentRates (taxa real + lift vs. população) ──────────────────────────
+
+describe('getSegmentRates', () => {
+  it('alta performance em Tecnologia sai com lift > 2× (perda regretida)', () => {
+    const r = getSegmentRates('12m', 'Tecnologia', 'nivelPerformance');
+    expect(r.temPopulacaoBase).toBe(true);
+    const acima = r.itens.find(i => i.label === 'acima')!;
+    expect(acima.lift).not.toBeNull();
+    expect(acima.lift!).toBeGreaterThan(2);
+    // taxa do segmento = taxa geral × lift
+    expect(acima.taxaSegmento!).toBeGreaterThan(r.taxaGeral);
+  });
+
+  it('lift neutro (~1) significa composição ≈ população', () => {
+    const r = getSegmentRates('12m', 'Geral', 'senioridade');
+    for (const i of r.itens) {
+      if (i.lift !== null) expect(i.lift).toBeGreaterThan(0);
+    }
+  });
+
+  it('dimensão sem população base retorna apenas composição', () => {
+    const r = getSegmentRates('12m', 'Tecnologia', 'motivoDesligamento');
+    expect(r.temPopulacaoBase).toBe(false);
+    expect(r.itens.every(i => i.lift === null)).toBe(true);
+  });
+
+  it('marca amostra insuficiente abaixo de MIN_AMOSTRA', () => {
+    const r = getSegmentRates('q1', 'Gente', 'posicionamentoFaixa');
+    const pequenos = r.itens.filter(i => i.desligamentos < MIN_AMOSTRA);
+    expect(pequenos.every(i => i.amostraSuficiente === false)).toBe(true);
+  });
+});
+
+// ── getDrivers (diagnóstico multivariado) ─────────────────────────────────────
+
+describe('getDrivers', () => {
+  it('aponta subpagamento e/ou baixa satisfação como fator de risco em Tecnologia', () => {
+    const r = getDrivers('12m', 'Tecnologia');
+    expect(r.fatoresDeRisco.length).toBeGreaterThan(0);
+    expect(r.fatoresDeRisco.every(d => d.lift >= 1.3)).toBe(true);
+    expect(r.fatoresDeRisco.every(d => d.desligamentos >= MIN_AMOSTRA)).toBe(true);
+    const temRiscoEsperado = r.fatoresDeRisco.some(d =>
+      (d.dimensao === 'posicionamentoFaixa' && d.valor === 'piso') ||
+      (d.dimensao === 'nivelSatisfacao' && d.valor === 'baixo') ||
+      (d.dimensao === 'nivelPerformance' && d.valor === 'acima'));
+    expect(temRiscoEsperado).toBe(true);
+  });
+
+  it('fatores protetivos têm lift <= 0.7', () => {
+    const r = getDrivers('12m', 'Tecnologia');
+    expect(r.fatoresProtetivos.every(d => d.lift <= 0.7)).toBe(true);
+  });
+});
+
+// ── crossBreakdown ────────────────────────────────────────────────────────────
+
+describe('crossBreakdown', () => {
+  it('soma das células ≤ total e células ordenadas desc', () => {
+    const r = crossBreakdown('12m', 'Tecnologia', 'senioridade', 'posicionamentoFaixa');
+    const soma = r.celulas.reduce((s, c) => s + c.desligamentos, 0);
+    expect(soma).toBeLessThanOrEqual(r.totalDesligamentos);
+    for (let i = 1; i < r.celulas.length; i++) {
+      expect(r.celulas[i - 1].desligamentos).toBeGreaterThanOrEqual(r.celulas[i].desligamentos);
+    }
+  });
+});
+
+// ── compareGroups ─────────────────────────────────────────────────────────────
+
+describe('compareGroups', () => {
+  it('Tecnologia tem turnover maior que Gente', () => {
+    const r = compareGroups('12m', 'Tecnologia', '12m', 'Gente');
+    expect(r.grupoA.taxa).toBeGreaterThan(r.grupoB.taxa);
+    expect(r.liderTaxa).toBe('Tecnologia');
+    expect(r.diferencaTaxaPp).toBeGreaterThan(0);
+  });
+
+  it('comparar dois períodos da mesma diretoria usa rótulos de período', () => {
+    const r = compareGroups('q1', 'Operações', 'q4', 'Operações');
+    expect(r.grupoA.rotulo).not.toBe(r.grupoB.rotulo);
+  });
+});
+
+// ── getCohortByTenure ─────────────────────────────────────────────────────────
+
+describe('getCohortByTenure', () => {
+  it('buckets somam o total e early attrition é coerente', () => {
+    const r = getCohortByTenure('12m', 'Geral');
+    const soma = r.buckets.reduce((s, b) => s + b.desligamentos, 0);
+    expect(soma).toBe(r.totalDesligamentos);
+    expect(r.earlyAttritionPct).toBeGreaterThanOrEqual(0);
+    expect(r.earlyAttritionPct).toBeLessThanOrEqual(100);
+  });
+});
+
+// ── quantifyCost ──────────────────────────────────────────────────────────────
+
+describe('quantifyCost', () => {
+  it('custo de reposição = folha mensal × multiplicador', () => {
+    const r = quantifyCost('12m', 'Tecnologia');
+    expect(r.custoReposicaoEstimado).toBe(r.folhaMensalPerdida * r.multiplicador);
+    expect(r.custoRegretido).toBeLessThanOrEqual(r.custoReposicaoEstimado);
+  });
+});
+
+// ── getRegrettedAttrition ─────────────────────────────────────────────────────
+
+describe('getRegrettedAttrition', () => {
+  it('em Tecnologia, perda regretida é alta e o motivo principal é remuneração', () => {
+    const r = getRegrettedAttrition('12m', 'Tecnologia');
+    expect(r.desligamentosRegretidos).toBeGreaterThan(0);
+    expect(r.percentualRegretido).toBeGreaterThan(0);
+    expect(r.custoRegretido).toBeGreaterThan(0);
+    expect(r.motivoPrincipal).toBe('remuneração');
   });
 });

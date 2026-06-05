@@ -16,9 +16,11 @@
 
 import desligamentosRaw from '@/lib/data/desligamentos.json';
 import headcountRaw from '@/lib/data/headcount.json';
+import populacaoRaw from '@/lib/data/populacao.json';
 import type {
   RegistroDesligamento,
   HeadcountMensal,
+  PopulacaoDiretoria,
   Diretoria,
   Periodo,
   TipoDesligamento,
@@ -31,13 +33,38 @@ import type {
   ItemBreakdown,
   ItemRanking,
   PontoSerie,
+  ResultadoSegmentRates,
+  ItemSegmentRate,
+  ResultadoDrivers,
+  DriverItem,
+  ResultadoCrossBreakdown,
+  CelulaCross,
+  ResultadoComparacao,
+  GrupoComparado,
+  ResultadoCohort,
+  CohortBucket,
+  ResultadoCusto,
+  ResultadoRegretido,
 } from '@/lib/types';
 
 const DESLIGAMENTOS = desligamentosRaw as RegistroDesligamento[];
 const HEADCOUNT = headcountRaw as HeadcountMensal[];
+const POPULACAO = populacaoRaw as unknown as PopulacaoDiretoria[];
 
 /** Meta interna mensal de turnover da Verta S.A. */
 export const META_TURNOVER_MENSAL = 0.020; // 2.0%
+
+/** Amostra mínima para uma fatia ser estatisticamente confiável */
+export const MIN_AMOSTRA = 5;
+
+/** Dimensões que têm composição de população base (permitem taxa real + lift) */
+const DIMENSOES_COM_POPULACAO: DimensaoBreakdown[] = [
+  'senioridade', 'posicionamentoFaixa', 'nivelPerformance',
+  'clusterLideranca', 'nivelSatisfacao', 'modalidadeTrabalho', 'especialidade',
+];
+
+/** Multiplicador de custo de reposição: ~6 meses de salário (hiring + ramp-up) */
+const MULT_REPOSICAO = 6;
 
 // ── Helpers internos ──────────────────────────────────────────────────────────
 
@@ -455,7 +482,7 @@ export function breakdownByDimension(
     clusterLideranca:   ['contribuidor individual', 'líder de CI', 'líder de líderes'],
   };
 
-  let keys = [...buckets.keys()];
+  const keys = [...buckets.keys()];
   const order = ORDER[dimensao];
   if (order) {
     keys.sort((a, b) => {
@@ -596,4 +623,322 @@ export function getHeadcount(
   });
 
   return { headcountInicio: hcInicio, headcountFim: hcFim, crescimento: hcFim - hcInicio, serieMensal };
+}
+
+// ── Análises avançadas (taxas reais, drivers, cohort, custo) ───────────────────
+
+/** Distribuição da população ativa para uma diretoria × dimensão (ou null) */
+function getPopDist(diretoria: Diretoria, dimensao: DimensaoBreakdown): Record<string, number> | null {
+  const entry = POPULACAO.find(p => p.diretoria === diretoria) ?? POPULACAO.find(p => p.diretoria === 'Geral');
+  return entry?.distribuicoes[dimensao] ?? null;
+}
+
+/** Agrupa desligamentos por valor de uma dimensão categórica */
+function bucketBy(desl: RegistroDesligamento[], dimensao: DimensaoBreakdown): Map<string, RegistroDesligamento[]> {
+  const buckets = new Map<string, RegistroDesligamento[]>();
+  for (const d of desl) {
+    const key = String(d[dimensao as keyof RegistroDesligamento]);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(d);
+  }
+  return buckets;
+}
+
+/**
+ * Taxa REAL de turnover por valor de uma dimensão, com lift vs. a população.
+ *
+ * Diferença crítica para breakdownByDimension: esta função usa a composição
+ * da força de trabalho ativa (populacao.json) como denominador, devolvendo a
+ * taxa de saída do segmento — não apenas a sua participação nas saídas.
+ * lift = composição_saídas ÷ composição_população (1.0 = neutro; 2.0 = sai 2× mais).
+ *
+ * @param periodo   - Período de análise
+ * @param diretoria - Diretoria ou 'Geral'
+ * @param dimensao  - Dimensão de corte (taxa/lift só para dimensões com população base)
+ * @param tipoDesligamento - Pré-filtrar por tipo de saída
+ */
+export function getSegmentRates(
+  periodo: Periodo,
+  diretoria: Diretoria = 'Geral',
+  dimensao: DimensaoBreakdown,
+  tipoDesligamento?: TipoDesligamento,
+): ResultadoSegmentRates {
+  const { mesesAtual, label } = resolvePeriodo(periodo);
+  const desl = filterDesligamentos(mesesAtual, diretoria, tipoDesligamento);
+  const total = desl.length;
+  const hcTotal = sumHeadcount(mesesAtual, diretoria);
+  const taxaGeral = calcTaxa(total, hcTotal);
+  const popDist = getPopDist(diretoria, dimensao);
+  const temPopulacaoBase = popDist !== null;
+
+  const buckets = bucketBy(desl, dimensao);
+  const itens: ItemSegmentRate[] = [...buckets.entries()].map(([valor, grupo]) => {
+    const composicaoPct = total > 0 ? parseFloat((grupo.length / total * 100).toFixed(1)) : 0;
+    const popShare = popDist?.[valor] ?? null;
+    const lift = popShare && popShare > 0 ? parseFloat((composicaoPct / 100 / popShare).toFixed(2)) : null;
+    const taxaSegmento = lift !== null ? parseFloat((taxaGeral * lift).toFixed(4)) : null;
+    return {
+      label: valor,
+      desligamentos: grupo.length,
+      composicaoPct,
+      populacaoPct: popShare !== null ? parseFloat((popShare * 100).toFixed(1)) : null,
+      taxaSegmento,
+      lift,
+      amostraSuficiente: grupo.length >= MIN_AMOSTRA,
+    };
+  });
+
+  // Ordena por lift desc quando há população; senão por composição
+  itens.sort((a, b) => (b.lift ?? b.composicaoPct) - (a.lift ?? a.composicaoPct));
+
+  return { dimensao, diretoria, periodo: label, totalDesligamentos: total, taxaGeral, temPopulacaoBase, itens };
+}
+
+/**
+ * Drivers de turnover: varre todas as dimensões com população base e ranqueia
+ * os segmentos por lift, separando fatores de RISCO (saem muito acima do
+ * esperado) de fatores PROTETIVOS (retêm acima do esperado).
+ *
+ * Responde "o que está puxando o turnover?" com evidência quantitativa real,
+ * em vez de uma fatia descritiva por vez.
+ *
+ * @param periodo   - Período de análise
+ * @param diretoria - Diretoria ou 'Geral'
+ * @param tipoDesligamento - Pré-filtrar por tipo de saída
+ */
+export function getDrivers(
+  periodo: Periodo,
+  diretoria: Diretoria = 'Geral',
+  tipoDesligamento?: TipoDesligamento,
+): ResultadoDrivers {
+  const { mesesAtual, label } = resolvePeriodo(periodo);
+  const desl = filterDesligamentos(mesesAtual, diretoria, tipoDesligamento);
+  const total = desl.length;
+  const taxaGeral = calcTaxa(total, sumHeadcount(mesesAtual, diretoria));
+
+  const todos: DriverItem[] = [];
+  for (const dim of DIMENSOES_COM_POPULACAO) {
+    const rates = getSegmentRates(periodo, diretoria, dim, tipoDesligamento);
+    for (const it of rates.itens) {
+      if (it.lift === null || it.populacaoPct === null || !it.amostraSuficiente) continue;
+      todos.push({
+        dimensao: dim,
+        valor: it.label,
+        desligamentos: it.desligamentos,
+        composicaoPct: it.composicaoPct,
+        populacaoPct: it.populacaoPct,
+        lift: it.lift,
+        taxaSegmento: it.taxaSegmento ?? 0,
+      });
+    }
+  }
+
+  const fatoresDeRisco = todos.filter(d => d.lift >= 1.3).sort((a, b) => b.lift - a.lift).slice(0, 6);
+  const fatoresProtetivos = todos.filter(d => d.lift <= 0.7).sort((a, b) => a.lift - b.lift).slice(0, 4);
+
+  const aviso = total < MIN_AMOSTRA * 3
+    ? `Amostra pequena (${total} saídas) — leia os drivers como indicativos, não conclusivos.`
+    : null;
+
+  return { diretoria, periodo: label, totalDesligamentos: total, taxaGeral, fatoresDeRisco, fatoresProtetivos, aviso };
+}
+
+/**
+ * Cruzamento de duas dimensões — encontra o segmento de interseção mais crítico.
+ * Ex: senioridade × posicionamentoFaixa = "júnior no piso da faixa".
+ *
+ * @param periodo    - Período de análise
+ * @param diretoria  - Diretoria ou 'Geral'
+ * @param dimensao1  - Primeira dimensão de corte
+ * @param dimensao2  - Segunda dimensão de corte
+ * @param tipoDesligamento - Pré-filtrar por tipo de saída
+ */
+export function crossBreakdown(
+  periodo: Periodo,
+  diretoria: Diretoria = 'Geral',
+  dimensao1: DimensaoBreakdown,
+  dimensao2: DimensaoBreakdown,
+  tipoDesligamento?: TipoDesligamento,
+): ResultadoCrossBreakdown {
+  const { mesesAtual, label } = resolvePeriodo(periodo);
+  const desl = filterDesligamentos(mesesAtual, diretoria, tipoDesligamento);
+  const total = desl.length;
+
+  const buckets = new Map<string, { v1: string; v2: string; n: number }>();
+  for (const d of desl) {
+    const v1 = String(d[dimensao1 as keyof RegistroDesligamento]);
+    const v2 = String(d[dimensao2 as keyof RegistroDesligamento]);
+    const key = `${v1}||${v2}`;
+    const cur = buckets.get(key) ?? { v1, v2, n: 0 };
+    cur.n++;
+    buckets.set(key, cur);
+  }
+
+  const celulas: CelulaCross[] = [...buckets.values()]
+    .map(c => ({ valor1: c.v1, valor2: c.v2, desligamentos: c.n, percentual: total > 0 ? parseFloat((c.n / total * 100).toFixed(1)) : 0 }))
+    .sort((a, b) => b.desligamentos - a.desligamentos)
+    .slice(0, 12);
+
+  const top = celulas[0];
+  const destaque = top && top.desligamentos >= MIN_AMOSTRA
+    ? `${top.valor1} × ${top.valor2} concentra ${top.percentual}% das saídas (${top.desligamentos} pessoas).`
+    : null;
+
+  return { dimensao1, dimensao2, diretoria, periodo: label, totalDesligamentos: total, celulas, destaque };
+}
+
+/** Métricas-resumo de um recorte, usado por compareGroups */
+function resumoGrupo(rotulo: string, periodo: Periodo, diretoria: Diretoria, tipo?: TipoDesligamento): GrupoComparado {
+  const { mesesAtual } = resolvePeriodo(periodo);
+  const desl = filterDesligamentos(mesesAtual, diretoria, tipo);
+  const total = desl.length;
+  const hcTotal = sumHeadcount(mesesAtual, diretoria);
+  const vol = desl.filter(d => d.tipoDesligamento === 'voluntário').length;
+  const alta = desl.filter(d => d.nivelPerformance === 'acima').length;
+  return {
+    rotulo,
+    taxa: calcTaxa(total, hcTotal),
+    desligamentos: total,
+    headcountMedio: Math.round(hcTotal / mesesAtual.length),
+    voluntarioPct: total > 0 ? parseFloat((vol / total * 100).toFixed(1)) : 0,
+    altaPerformancePct: total > 0 ? parseFloat((alta / total * 100).toFixed(1)) : 0,
+  };
+}
+
+/**
+ * Compara dois recortes lado a lado (duas diretorias, ou dois períodos da mesma
+ * diretoria). Responde "como X se compara com Y?".
+ *
+ * @param periodoA / diretoriaA - Primeiro recorte
+ * @param periodoB / diretoriaB - Segundo recorte
+ * @param tipoDesligamento      - Filtro de tipo aplicado a ambos
+ */
+export function compareGroups(
+  periodoA: Periodo,
+  diretoriaA: Diretoria,
+  periodoB: Periodo,
+  diretoriaB: Diretoria,
+  tipoDesligamento?: TipoDesligamento,
+): ResultadoComparacao {
+  const { label: labelA } = resolvePeriodo(periodoA);
+  const { label: labelB } = resolvePeriodo(periodoB);
+  const rotA = diretoriaA === diretoriaB ? labelA : diretoriaA;
+  const rotB = diretoriaA === diretoriaB ? labelB : diretoriaB;
+  const grupoA = resumoGrupo(rotA, periodoA, diretoriaA, tipoDesligamento);
+  const grupoB = resumoGrupo(rotB, periodoB, diretoriaB, tipoDesligamento);
+  return {
+    grupoA,
+    grupoB,
+    diferencaTaxaPp: parseFloat(((grupoA.taxa - grupoB.taxa) * 100).toFixed(2)),
+    liderTaxa: grupoA.taxa >= grupoB.taxa ? grupoA.rotulo : grupoB.rotulo,
+  };
+}
+
+/**
+ * Cohort de saída por tempo de casa. Revela early attrition (saída precoce) —
+ * a análise nº 1 de retenção. Responde "estamos perdendo gente nova?".
+ *
+ * @param periodo   - Período de análise
+ * @param diretoria - Diretoria ou 'Geral'
+ * @param tipoDesligamento - Pré-filtrar por tipo de saída
+ */
+export function getCohortByTenure(
+  periodo: Periodo,
+  diretoria: Diretoria = 'Geral',
+  tipoDesligamento?: TipoDesligamento,
+): ResultadoCohort {
+  const { mesesAtual, label } = resolvePeriodo(periodo);
+  const desl = filterDesligamentos(mesesAtual, diretoria, tipoDesligamento);
+  const total = desl.length;
+
+  const FAIXAS: Array<{ faixa: string; min: number; max: number }> = [
+    { faixa: '0–12 meses',  min: 0,  max: 12 },
+    { faixa: '13–24 meses', min: 13, max: 24 },
+    { faixa: '25–48 meses', min: 25, max: 48 },
+    { faixa: '49+ meses',   min: 49, max: Infinity },
+  ];
+
+  const buckets: CohortBucket[] = FAIXAS.map(({ faixa, min, max }) => {
+    const grupo = desl.filter(d => d.tempoEmpresaMeses >= min && d.tempoEmpresaMeses <= max);
+    const vol = grupo.filter(d => d.tipoDesligamento === 'voluntário').length;
+    return {
+      faixa,
+      desligamentos: grupo.length,
+      percentual: total > 0 ? parseFloat((grupo.length / total * 100).toFixed(1)) : 0,
+      voluntarioPct: grupo.length > 0 ? parseFloat((vol / grupo.length * 100).toFixed(1)) : 0,
+      salarioMedio: grupo.length > 0 ? Math.round(grupo.reduce((s, d) => s + d.salarioBRL, 0) / grupo.length / 100) * 100 : 0,
+    };
+  });
+
+  const early = desl.filter(d => d.tempoEmpresaMeses <= 12).length;
+  const tempoMedio = total > 0 ? Math.round(desl.reduce((s, d) => s + d.tempoEmpresaMeses, 0) / total) : 0;
+
+  return {
+    diretoria, periodo: label, totalDesligamentos: total, buckets,
+    earlyAttritionPct: total > 0 ? parseFloat((early / total * 100).toFixed(1)) : 0,
+    tempoMedioMeses: tempoMedio,
+  };
+}
+
+/**
+ * Quantifica o custo financeiro do turnover. Responde "quanto isso está
+ * custando?" — o número que move decisão de C-level.
+ *
+ * @param periodo   - Período de análise
+ * @param diretoria - Diretoria ou 'Geral'
+ * @param tipoDesligamento - Pré-filtrar por tipo de saída
+ */
+export function quantifyCost(
+  periodo: Periodo,
+  diretoria: Diretoria = 'Geral',
+  tipoDesligamento?: TipoDesligamento,
+): ResultadoCusto {
+  const { mesesAtual, label } = resolvePeriodo(periodo);
+  const desl = filterDesligamentos(mesesAtual, diretoria, tipoDesligamento);
+  const folhaMensalPerdida = desl.reduce((s, d) => s + d.salarioBRL, 0);
+  const regretidos = desl.filter(d => d.tipoDesligamento === 'voluntário' && d.nivelPerformance === 'acima');
+  const folhaRegretida = regretidos.reduce((s, d) => s + d.salarioBRL, 0);
+  return {
+    diretoria, periodo: label,
+    desligamentos: desl.length,
+    folhaMensalPerdida,
+    custoReposicaoEstimado: folhaMensalPerdida * MULT_REPOSICAO,
+    multiplicador: MULT_REPOSICAO,
+    custoRegretido: folhaRegretida * MULT_REPOSICAO,
+    metodologia: `Custo de reposição ≈ ${MULT_REPOSICAO} meses de salário por saída (recrutamento + onboarding + ramp-up).`,
+  };
+}
+
+/**
+ * Regretted attrition: saídas VOLUNTÁRIAS de quem tinha performance "acima".
+ * É a perda cara — talento bom que pediu para sair. Métrica de 1ª classe.
+ *
+ * @param periodo   - Período de análise
+ * @param diretoria - Diretoria ou 'Geral'
+ */
+export function getRegrettedAttrition(
+  periodo: Periodo,
+  diretoria: Diretoria = 'Geral',
+): ResultadoRegretido {
+  const { mesesAtual, label } = resolvePeriodo(periodo);
+  const desl = filterDesligamentos(mesesAtual, diretoria);
+  const total = desl.length;
+  const regretidos = desl.filter(d => d.tipoDesligamento === 'voluntário' && d.nivelPerformance === 'acima');
+  const n = regretidos.length;
+
+  // Motivo dominante entre os regretidos
+  const motivos = new Map<string, number>();
+  for (const d of regretidos) motivos.set(d.motivoDesligamento, (motivos.get(d.motivoDesligamento) ?? 0) + 1);
+  const motivoPrincipal = [...motivos.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+  return {
+    diretoria, periodo: label,
+    totalDesligamentos: total,
+    desligamentosRegretidos: n,
+    percentualRegretido: total > 0 ? parseFloat((n / total * 100).toFixed(1)) : 0,
+    custoRegretido: regretidos.reduce((s, d) => s + d.salarioBRL, 0) * MULT_REPOSICAO,
+    salarioMedio: n > 0 ? Math.round(regretidos.reduce((s, d) => s + d.salarioBRL, 0) / n / 100) * 100 : 0,
+    npsInternoMedio: n > 0 ? parseFloat((regretidos.reduce((s, d) => s + d.npsInterno, 0) / n).toFixed(1)) : 0,
+    motivoPrincipal,
+  };
 }

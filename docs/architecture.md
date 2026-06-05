@@ -15,10 +15,16 @@ Dashboard executivo de turnover com IA conversacional, sem banco de dados nem ba
 - Os dados são lidos em Server Components (zero custo de fetch em runtime para o usuário).
 
 ```
-scripts/generate-data.ts  →  lib/data/headcount.json
-                          →  lib/data/desligamentos.json
-                          →  lib/data/aggregated.json
+scripts/generate-data.ts  →  lib/data/headcount.json    (headcount agregado mês × diretoria)
+                          →  lib/data/desligamentos.json (eventos individuais de saída)
+                          →  lib/data/populacao.json     (composição da força ATIVA por dimensão)
 ```
+
+> **Por que `populacao.json`?** Sem a composição de quem *fica*, só conseguimos
+> medir a *composição* de quem saiu ("60% eram júnior"), nunca a *taxa* por
+> segmento ("júniors saem 2× mais") nem o *lift* (sobre-representação). A
+> população base destrava `getSegmentRates` e `getDrivers` — a diferença entre
+> uma análise descritiva e uma diagnóstica.
 
 ### 2. Insights proativos — JSON estático indexado por filtro
 
@@ -33,11 +39,27 @@ Combinações: 6 períodos × 7 visões (Geral + 6 diretorias) = 42 combinaçõe
 
 ### 3. Chat — única superfície dinâmica (serverless function)
 
-- `app/api/chat/route.ts` é o único endpoint de backend.
-- Recebe: `{ pergunta, historico, contextoFiltro }`.
-- Fluxo: modelo → escolhe tool → servidor executa função real sobre dados → resultado volta ao modelo → resposta em PT + especificação de gráfico.
-- A API key do OpenRouter vive exclusivamente em variável de ambiente server-side (`OPENROUTER_API_KEY`). Nunca no client bundle.
-- Tratamento de erro robusto com fallback amigável.
+- `app/api/chat/route.ts` é o único endpoint de backend (`runtime = 'nodejs'`, `maxDuration = 60`).
+- Recebe: `{ messages, periodo, diretoria }`.
+- Fluxo em duas fases:
+  1. **Fase de ferramentas** (não-streamada): loop agêntico onde o modelo escolhe tools, o servidor executa as funções determinísticas e emite eventos de progresso (`t: 's'`) descrevendo cada consulta.
+  2. **Fase de resposta** (streaming real): o modelo sintetiza a resposta final em Markdown, com tokens transmitidos via SSE (`t: 'c'`) à medida que chegam; um gráfico (`t: 'g'`) é anexado ao fim.
+- Modelo: um modelo de raciocínio (default `anthropic/claude-3.5-sonnet`) — function calling confiável e análise multivariada. Configurável via `OPENROUTER_MODEL`.
+- A API key vive exclusivamente em variável de ambiente server-side (`OPENROUTER_API_KEY`). Nunca no client bundle.
+- Rate limiting in-memory por IP e erros internos ocultados do cliente (logados no servidor).
+
+### 3b. Camada analítica — função determinística como fonte única de números
+
+Toda resposta numérica vem de `lib/calculations`. Além das funções descritivas
+(turnover, tendência, ranking, YTD), há uma camada **diagnóstica** que cruza os
+dados com a população base:
+
+- `getSegmentRates` / `getDrivers` — taxa real e *lift* por segmento (não composição).
+- `crossBreakdown` — interseção de duas dimensões (ex: sênior × piso da faixa).
+- `compareGroups` — dois recortes lado a lado.
+- `getCohortByTenure` — early attrition por tempo de casa.
+- `quantifyCost` / `getRegrettedAttrition` — impacto financeiro e perda de talento.
+- Guardrail de amostra (`MIN_AMOSTRA`) sinaliza fatias estatisticamente frágeis.
 
 ### 4. Estado do cliente — filtros como fonte de verdade
 

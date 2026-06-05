@@ -5,21 +5,23 @@ import { useFilter } from '@/lib/context/FilterContext';
 import type { MensagemChat, ChatGraph, Diretoria } from '@/lib/types';
 import { TrendChart } from './TrendChart';
 import { RankingChart } from './RankingChart';
+import { ChatBars } from './ChatBars';
+import { Markdown } from './Markdown';
 
 // ── Perguntas sugeridas por diretoria ─────────────────────────────────────────
 
 const SUGESTOES: Record<string, string[]> = {
   Geral: [
     'Qual diretoria tem o maior turnover?',
-    'Por que o turnover cresceu em 2024?',
-    'Tem alguma diretoria dentro da meta?',
-    'Qual a projeção para o próximo trimestre?',
+    'O que está puxando o turnover da empresa?',
+    'Quanto o turnover está custando em 2024?',
+    'Estamos perdendo os nossos melhores?',
   ],
   Tecnologia: [
-    'Por que o turnover de Tecnologia está tão alto?',
-    'Desde quando o problema em Tecnologia começou?',
-    'Quem está saindo mais: alta ou baixa performance?',
-    'Qual a diferença entre voluntário e involuntário?',
+    'O que está puxando o turnover de Tecnologia?',
+    'Quanto custa a perda de talento em Tecnologia?',
+    'Quem sai proporcionalmente mais em Tecnologia?',
+    'Compare Tecnologia com a Gente',
   ],
   'Distribuição & Assessoria': [
     'O pico de janeiro é sazonal ou crônico?',
@@ -82,24 +84,33 @@ function ChatInlineGraph({ graph }: { graph: ChatGraph }) {
       </div>
     );
   }
+  if (graph.type === 'bars') {
+    return (
+      <div className="mt-3 rounded-lg overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
+        <ChatBars title={graph.title} unit={graph.unit} data={graph.data} />
+      </div>
+    );
+  }
   return null;
 }
 
-// ── Typing indicator ──────────────────────────────────────────────────────────
+// ── Progress indicator (status real das funções) ──────────────────────────────
 
-function TypingDots() {
+function ProgressIndicator({ status }: { status?: string }) {
   return (
-    <div className="flex items-center gap-1 px-3 py-2">
-      {[0, 1, 2].map(i => (
-        <span
-          key={i}
-          className="h-1.5 w-1.5 rounded-full animate-bounce"
-          style={{
-            backgroundColor: 'var(--color-accent)',
-            animationDelay: `${i * 0.15}s`,
-          }}
-        />
-      ))}
+    <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex items-center gap-1">
+        {[0, 1, 2].map(i => (
+          <span
+            key={i}
+            className="h-1.5 w-1.5 rounded-full animate-bounce"
+            style={{ backgroundColor: 'var(--color-accent)', animationDelay: `${i * 0.15}s` }}
+          />
+        ))}
+      </div>
+      {status && (
+        <span className="text-[0.78rem]" style={{ color: 'var(--color-text-muted)' }}>{status}</span>
+      )}
     </div>
   );
 }
@@ -112,17 +123,19 @@ function MessageBubble({ msg }: { msg: MensagemChat }) {
   return (
     <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1`}>
       <div
-        className="max-w-[92%] rounded-xl px-3 py-2 text-xs leading-relaxed"
+        className="max-w-[94%] rounded-xl px-3 py-2 text-sm leading-relaxed"
         style={{
           backgroundColor: isUser ? 'var(--color-accent)' : 'var(--color-surface-raised)',
           color: isUser ? 'var(--color-text-inverse)' : 'var(--color-text-primary)',
         }}
       >
         {msg.streaming && !msg.content ? (
-          <TypingDots />
+          <ProgressIndicator status={msg.status} />
+        ) : isUser ? (
+          <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
         ) : (
           <>
-            <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+            <Markdown text={msg.content} />
             {msg.streaming && (
               <span
                 className="inline-block w-0.5 h-3 ml-0.5 animate-pulse"
@@ -215,12 +228,19 @@ export function ChatPanel() {
 
           try {
             const evt = JSON.parse(raw) as { t: string; v: unknown };
-            if (evt.t === 'c') {
+            if (evt.t === 's') {
+              const status = evt.v as string;
+              setMessages(prev =>
+                prev.map(m =>
+                  m.id === assistantId ? { ...m, status, streaming: true } : m
+                )
+              );
+            } else if (evt.t === 'c') {
               accumulated += evt.v as string;
               setMessages(prev =>
                 prev.map(m =>
                   m.id === assistantId
-                    ? { ...m, content: accumulated, streaming: true }
+                    ? { ...m, content: accumulated, status: undefined, streaming: true }
                     : m
                 )
               );
@@ -338,7 +358,33 @@ export function ChatPanel() {
             </div>
           </div>
         ) : (
-          messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)
+          <>
+            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)}
+            {/* Follow-ups contextuais — após a resposta, mantém a conversa fluindo */}
+            {!loading && messages.length > 0 && !messages[messages.length - 1].streaming && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {sugestoes
+                  .filter(q => !messages.some(m => m.role === 'user' && m.content === q))
+                  .slice(0, 3)
+                  .map(q => (
+                    <button
+                      key={q}
+                      onClick={() => sendMessage(q)}
+                      className="text-left text-[0.72rem] px-2.5 py-1.5 rounded-full transition-colors"
+                      style={{
+                        backgroundColor: 'var(--color-surface-raised)',
+                        color: 'var(--color-text-secondary)',
+                        border: '1px solid var(--color-border)',
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--color-accent)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--color-border)'; }}
+                    >
+                      {q}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </>
         )}
         <div ref={bottomRef} />
       </div>

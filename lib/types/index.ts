@@ -88,6 +88,16 @@ export interface HeadcountMensal {
   headcountFim: number;
 }
 
+// ─── População ativa (quem ficou) ────────────────────────────────────────────
+
+/** Composição da força de trabalho ativa por dimensão — lib/data/populacao.json */
+export interface PopulacaoDiretoria {
+  diretoria: Diretoria;
+  headcountMedio: number;
+  /** distribuicoes[dimensao][valor] = fração do headcount */
+  distribuicoes: Record<string, Record<string, number>>;
+}
+
 // ─── Resultados das funções de cálculo ───────────────────────────────────────
 
 /** Ponto de dados numa série temporal */
@@ -201,6 +211,130 @@ export interface ResultadoBreakdown {
   itens: ItemBreakdown[];
 }
 
+// ─── Análises avançadas (taxas reais, drivers, cohort, custo) ────────────────
+
+/** getSegmentRates → taxa REAL por valor de uma dimensão, com lift vs população */
+export interface ItemSegmentRate {
+  label: string;
+  desligamentos: number;
+  composicaoPct: number;        // % das saídas neste segmento
+  populacaoPct: number | null;  // % do headcount neste segmento (null se sem base)
+  taxaSegmento: number | null;  // taxa mensal real do segmento (null se sem base)
+  lift: number | null;          // sobre-representação: composição ÷ população (1 = neutro)
+  amostraSuficiente: boolean;   // false se desligamentos < limite de confiança
+}
+
+export interface ResultadoSegmentRates {
+  dimensao: DimensaoBreakdown;
+  diretoria: Diretoria;
+  periodo: string;
+  totalDesligamentos: number;
+  taxaGeral: number;            // taxa mensal média do recorte (base do lift)
+  temPopulacaoBase: boolean;    // se a dimensão tem composição de população
+  itens: ItemSegmentRate[];
+}
+
+/** getDrivers → fatores que mais sobre/sub-representam as saídas, ranqueados por lift */
+export interface DriverItem {
+  dimensao: string;
+  valor: string;
+  desligamentos: number;
+  composicaoPct: number;
+  populacaoPct: number;
+  lift: number;
+  taxaSegmento: number;
+}
+
+export interface ResultadoDrivers {
+  diretoria: Diretoria;
+  periodo: string;
+  totalDesligamentos: number;
+  taxaGeral: number;
+  /** fatores de risco: lift alto (segmento sai muito acima do esperado) */
+  fatoresDeRisco: DriverItem[];
+  /** fatores protetivos: lift baixo (segmento retém acima do esperado) */
+  fatoresProtetivos: DriverItem[];
+  aviso: string | null;         // alerta de amostra/limitação
+}
+
+/** crossBreakdown → cruzamento de duas dimensões */
+export interface CelulaCross {
+  valor1: string;
+  valor2: string;
+  desligamentos: number;
+  percentual: number;
+}
+
+export interface ResultadoCrossBreakdown {
+  dimensao1: DimensaoBreakdown;
+  dimensao2: DimensaoBreakdown;
+  diretoria: Diretoria;
+  periodo: string;
+  totalDesligamentos: number;
+  celulas: CelulaCross[];       // ordenadas por desligamentos desc
+  destaque: string | null;      // narrativa do segmento mais crítico
+}
+
+/** compareGroups → comparação lado a lado de dois recortes */
+export interface GrupoComparado {
+  rotulo: string;
+  taxa: number;
+  desligamentos: number;
+  headcountMedio: number;
+  voluntarioPct: number;
+  altaPerformancePct: number;   // % das saídas que eram alta performance
+}
+
+export interface ResultadoComparacao {
+  grupoA: GrupoComparado;
+  grupoB: GrupoComparado;
+  diferencaTaxaPp: number;      // pp (A - B)
+  liderTaxa: string;            // qual grupo tem maior taxa
+}
+
+/** getCohortByTenure → saídas por faixa de tempo de casa */
+export interface CohortBucket {
+  faixa: string;                // ex: "0-12 meses"
+  desligamentos: number;
+  percentual: number;
+  voluntarioPct: number;
+  salarioMedio: number;
+}
+
+export interface ResultadoCohort {
+  diretoria: Diretoria;
+  periodo: string;
+  totalDesligamentos: number;
+  buckets: CohortBucket[];
+  earlyAttritionPct: number;    // % que saiu em ≤12 meses
+  tempoMedioMeses: number;
+}
+
+/** quantifyCost → custo estimado do turnover */
+export interface ResultadoCusto {
+  diretoria: Diretoria;
+  periodo: string;
+  desligamentos: number;
+  folhaMensalPerdida: number;        // soma dos salários mensais
+  custoReposicaoEstimado: number;    // folha × multiplicador
+  multiplicador: number;
+  custoRegretido: number;            // custo só das saídas voluntárias de alta performance
+  metodologia: string;
+}
+
+/** getRegrettedAttrition → saídas voluntárias de alta performance (a perda cara) */
+export interface ResultadoRegretido {
+  diretoria: Diretoria;
+  periodo: string;
+  totalDesligamentos: number;
+  desligamentosRegretidos: number;   // voluntário + performance "acima"
+  percentualRegretido: number;       // % do total de saídas
+  custoRegretido: number;
+  salarioMedio: number;
+  npsInternoMedio: number;
+  motivoPrincipal: string | null;
+}
+
 // ─── Insights pré-gerados ────────────────────────────────────────────────────
 
 /** Insight pré-gerado para uma combinação periodo × diretoria */
@@ -220,11 +354,20 @@ export type IndiceInsights = Record<string, InsightPreGerado>;
 
 // ─── Chat conversacional ─────────────────────────────────────────────────────
 
+/** Item genérico de gráfico de barras horizontais para análises avançadas */
+export interface BarItem {
+  label: string;
+  value: number;
+  highlight?: boolean;
+  sub?: string; // rótulo secundário (ex: "n=49 · 18%/mês")
+}
+
 /** Gráfico inline que a IA indica na resposta — usa os mesmos componentes M4 */
 export type ChatGraph =
   | { type: 'trend'; tendencia: ResultadoTendencia; projecao: ResultadoProjecao; meta: number }
   | { type: 'ranking'; data: ResultadoRanking }
-  | { type: 'breakdown'; data: ResultadoBreakdown };
+  | { type: 'breakdown'; data: ResultadoBreakdown }
+  | { type: 'bars'; title: string; unit: '%' | 'x' | 'n' | 'R$'; data: BarItem[] };
 
 /** Mensagem no histórico do chat */
 export interface MensagemChat {
@@ -233,6 +376,7 @@ export interface MensagemChat {
   content: string;
   graph?: ChatGraph;
   streaming?: boolean;
+  status?: string; // rótulo de progresso enquanto as funções rodam
 }
 
 /** Estado do filtro ativo — compartilhado entre dashboard e chat */
