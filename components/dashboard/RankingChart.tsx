@@ -64,18 +64,40 @@ function DeltaCell({ delta }: { delta: number | null }) {
 
 // ── Ranking table (mode=ranking) ──────────────────────────────────────────────
 
+const TH = "py-1.5 px-2 text-right font-semibold uppercase tracking-wide";
+const TH_SZ = { fontSize: 10, color: 'var(--color-text-muted)' };
+
 function RankingTable({ data, narrativeTitle, periodo: periodoProp }: { data: ResultadoRanking; narrativeTitle?: string; periodo?: Periodo }) {
   const { ranking, periodo } = data;
 
-  // nMeses: used to scale the meta (meta_mensal × n_meses = meta do período)
   const nMeses = periodoProp ? getMesesPeriodo(periodoProp).length : 12;
   const metaPeriodo = META * nMeses;
+  const metaFY = META * 12;
 
-  // Each row: taxa acumulada = desl / hcMédio  (same formula as BigStatsRow YTD card)
   const totalHC   = ranking.reduce((s, r) => s + r.headcountMedio, 0);
   const totalDesl = ranking.reduce((s, r) => s + r.desligamentos, 0);
   const totalTaxa = totalHC > 0 ? totalDesl / totalHC : 0;
   const totalStatus = calcStatus(totalTaxa, metaPeriodo);
+
+  // Weighted vol/invol totals
+  const totalDeslVol   = ranking.reduce((s, r) => s + r.ytdVoluntario   * r.headcountMedio, 0);
+  const totalDeslInvol = ranking.reduce((s, r) => s + r.ytdInvoluntario * r.headcountMedio, 0);
+  const totalYtdVol    = totalHC > 0 ? totalDeslVol   / totalHC : 0;
+  const totalYtdInvol  = totalHC > 0 ? totalDeslInvol / totalHC : 0;
+
+  // Weighted previous-period and YoY totals
+  const antRows    = ranking.filter(r => r.ytdAnterior    !== null);
+  const aaRows     = ranking.filter(r => r.ytdAnoAnterior !== null);
+  const totalHcAnt = antRows.reduce((s, r) => s + r.headcountMedio, 0);
+  const totalHcAA  = aaRows.reduce( (s, r) => s + r.headcountMedio, 0);
+  const totalYtdAnt = totalHcAnt > 0
+    ? antRows.reduce((s, r) => s + r.ytdAnterior!    * r.headcountMedio, 0) / totalHcAnt
+    : null;
+  const totalYtdAA  = totalHcAA  > 0
+    ? aaRows.reduce( (s, r) => s + r.ytdAnoAnterior! * r.headcountMedio, 0) / totalHcAA
+    : null;
+
+  const groupBorderL = { borderLeft: '1px solid var(--color-border)' };
 
   return (
     <Card>
@@ -85,23 +107,36 @@ function RankingTable({ data, narrativeTitle, periodo: periodoProp }: { data: Re
       </CardHeader>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs" style={{ borderCollapse: 'collapse' }}>
+        <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 11 }}>
           <thead>
+            {/* Group header row */}
             <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-              <th className="py-2 pl-4 pr-2 text-left font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--color-text-muted)', width: '38%' }}>
+              <th rowSpan={2} className="py-2 pl-4 pr-2 text-left font-semibold uppercase tracking-wide"
+                style={{ ...TH_SZ, width: '22%', verticalAlign: 'bottom' }}>
                 Diretoria
               </th>
-              <th className="py-2 px-2 text-right font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--color-text-muted)' }}>HC Méd</th>
-              <th className="py-2 px-2 text-right font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--color-text-muted)' }}>Saídas</th>
-              <th className="py-2 px-2 text-right font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--color-text-muted)' }}>Acumulado</th>
-              <th className="py-2 px-2 text-right font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--color-text-muted)' }}>Meta</th>
-              <th className="py-2 px-2 text-right font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--color-text-muted)' }}>Δ Mês ant.</th>
+              <th rowSpan={2} className={TH} style={{ ...TH_SZ, verticalAlign: 'bottom' }}>HC Méd</th>
+              <th rowSpan={2} className={TH} style={{ ...TH_SZ, verticalAlign: 'bottom' }}>Saídas</th>
+              <th colSpan={4} className="py-1 px-2 text-center font-semibold uppercase tracking-wide"
+                style={{ fontSize: 9, color: 'var(--color-accent)', borderBottom: '1px solid var(--color-border)', ...groupBorderL }}>
+                Turnover YTD
+              </th>
+              <th colSpan={3} className="py-1 px-2 text-center font-semibold uppercase tracking-wide"
+                style={{ fontSize: 9, color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)', ...groupBorderL, backgroundColor: 'var(--color-surface-raised)' }}>
+                Detalhamento
+              </th>
+              <th rowSpan={2} className={TH} style={{ ...TH_SZ, verticalAlign: 'bottom', ...groupBorderL }}>
+                Meta FY
+              </th>
+            </tr>
+            <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
+              <th className={TH} style={{ ...TH_SZ, ...groupBorderL }}>Real YTD</th>
+              <th className={TH} style={TH_SZ}>Meta</th>
+              <th className={TH} style={TH_SZ}>M-1</th>
+              <th className={TH} style={TH_SZ}>YoY</th>
+              <th className={TH} style={{ ...TH_SZ, ...groupBorderL }}>TO Vol</th>
+              <th className={TH} style={TH_SZ}>TO Invol</th>
+              <th className={TH} style={TH_SZ}>TO Geral</th>
             </tr>
           </thead>
           <tbody>
@@ -116,19 +151,42 @@ function RankingTable({ data, narrativeTitle, periodo: periodoProp }: { data: Re
               <td className="py-2 px-2 text-right font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
                 {totalDesl}
               </td>
-              <td className="py-2 px-2 text-right font-bold tabular-nums" style={{ color: statusColor(totalStatus) }}>
+              <td className="py-2 px-2 text-right font-bold tabular-nums" style={{ color: statusColor(totalStatus), ...groupBorderL }}>
                 {pctStr(totalTaxa)}
               </td>
               <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-muted)' }}>
                 {pctStr(metaPeriodo)}
               </td>
-              <td className="py-2 px-2 text-right">—</td>
+              <td className="py-2 px-2 text-right">
+                {totalYtdAnt !== null
+                  ? <DeltaCell delta={totalTaxa - totalYtdAnt} />
+                  : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
+              </td>
+              <td className="py-2 px-2 text-right">
+                {totalYtdAA !== null
+                  ? <DeltaCell delta={totalTaxa - totalYtdAA} />
+                  : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
+              </td>
+              <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-secondary)', ...groupBorderL }}>
+                {pctStr(totalYtdVol)}
+              </td>
+              <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
+                {pctStr(totalYtdInvol)}
+              </td>
+              <td className="py-2 px-2 text-right font-bold tabular-nums" style={{ color: statusColor(totalStatus) }}>
+                {pctStr(totalTaxa)}
+              </td>
+              <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-muted)', ...groupBorderL }}>
+                {pctStr(metaFY)}
+              </td>
             </tr>
 
-            {/* Per-diretoria rows — taxa = desl / hcMédio (acumulada do período) */}
+            {/* Per-diretoria rows */}
             {ranking.map((item, i) => {
-              const acum = item.headcountMedio > 0 ? item.desligamentos / item.headcountMedio : 0;
-              const st   = calcStatus(acum, metaPeriodo);
+              const acum  = item.ytdTotal;
+              const st    = calcStatus(acum, metaPeriodo);
+              const m1Delta  = item.ytdAnterior    !== null ? acum - item.ytdAnterior    : null;
+              const yoyDelta = item.ytdAnoAnterior !== null ? acum - item.ytdAnoAnterior : null;
               return (
                 <tr
                   key={item.diretoria}
@@ -143,14 +201,29 @@ function RankingTable({ data, narrativeTitle, periodo: periodoProp }: { data: Re
                   <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
                     {item.desligamentos}
                   </td>
-                  <td className="py-2 px-2 text-right tabular-nums font-semibold" style={{ color: statusColor(st) }}>
+                  <td className="py-2 px-2 text-right tabular-nums font-semibold" style={{ color: statusColor(st), ...groupBorderL }}>
                     {pctStr(acum)}
                   </td>
                   <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-muted)' }}>
                     {pctStr(metaPeriodo)}
                   </td>
                   <td className="py-2 px-2 text-right">
-                    <DeltaCell delta={item.variacaoMoM ? item.variacaoMoM * nMeses : null} />
+                    <DeltaCell delta={m1Delta} />
+                  </td>
+                  <td className="py-2 px-2 text-right">
+                    <DeltaCell delta={yoyDelta} />
+                  </td>
+                  <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-secondary)', ...groupBorderL }}>
+                    {pctStr(item.ytdVoluntario)}
+                  </td>
+                  <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
+                    {pctStr(item.ytdInvoluntario)}
+                  </td>
+                  <td className="py-2 px-2 text-right tabular-nums font-semibold" style={{ color: statusColor(st) }}>
+                    {pctStr(acum)}
+                  </td>
+                  <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-muted)', ...groupBorderL }}>
+                    {pctStr(metaFY)}
                   </td>
                 </tr>
               );

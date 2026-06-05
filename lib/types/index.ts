@@ -156,6 +156,12 @@ export interface ItemRanking {
   headcountMedio: number;
   variacaoMoM: number | null;
   status: 'good' | 'bad' | 'warn';
+  // YTD breakdown (desl / hcMedio para cada corte)
+  ytdTotal: number;
+  ytdVoluntario: number;
+  ytdInvoluntario: number;
+  ytdAnterior: number | null;
+  ytdAnoAnterior: number | null;
 }
 
 export interface ResultadoRanking {

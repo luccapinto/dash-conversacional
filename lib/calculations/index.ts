@@ -357,28 +357,57 @@ export function rankDiretoriasByTurnover(
   periodo: Periodo,
   tipoDesligamento?: TipoDesligamento,
 ): ResultadoRanking {
-  const { mesesAtual, mesesAnterior, label } = resolvePeriodo(periodo);
+  const { mesesAtual, mesesAnterior, mesesAnoAnterior, label } = resolvePeriodo(periodo);
 
   const DIRETORIAS: Diretoria[] = [
     'Tecnologia', 'Distribuição & Assessoria', 'Operações',
     'Financeiro & Risco', 'Gente', 'Produtos & Plataforma',
   ];
 
+  const n    = mesesAtual.length;
+  const nAnt = mesesAnterior.length;
+  const nAA  = mesesAnoAnterior?.length ?? 0;
+
   const ranking: ItemRanking[] = DIRETORIAS.map(dir => {
-    const deslAtual    = filterDesligamentos(mesesAtual, dir, tipoDesligamento).length;
+    const deslAtual    = filterDesligamentos(mesesAtual,    dir, tipoDesligamento).length;
     const deslAnterior = filterDesligamentos(mesesAnterior, dir, tipoDesligamento).length;
-    const hcAtual      = sumHeadcount(mesesAtual, dir);
-    const hcAnterior   = sumHeadcount(mesesAnterior, dir);
-    const taxa         = calcTaxa(deslAtual, hcAtual);
-    const taxaAnt      = calcTaxa(deslAnterior, hcAnterior);
+    const deslVol      = filterDesligamentos(mesesAtual,    dir, 'voluntário').length;
+    const deslInvol    = filterDesligamentos(mesesAtual,    dir, 'involuntário').length;
+
+    const hcAtual    = sumHeadcount(mesesAtual,    dir);
+    const hcAnterior = sumHeadcount(mesesAnterior, dir);
+
+    const hcMedio    = n    > 0 ? hcAtual    / n    : 0;
+    const hcMedioAnt = nAnt > 0 ? hcAnterior / nAnt : 0;
+
+    const taxa    = calcTaxa(deslAtual,    hcAtual);
+    const taxaAnt = calcTaxa(deslAnterior, hcAnterior);
+
+    const ytdTotal       = hcMedio > 0 ? deslAtual  / hcMedio : 0;
+    const ytdVoluntario  = hcMedio > 0 ? deslVol    / hcMedio : 0;
+    const ytdInvoluntario= hcMedio > 0 ? deslInvol  / hcMedio : 0;
+    const ytdAnterior    = hcMedioAnt > 0 ? deslAnterior / hcMedioAnt : null;
+
+    let ytdAnoAnterior: number | null = null;
+    if (mesesAnoAnterior && nAA > 0) {
+      const deslAA = filterDesligamentos(mesesAnoAnterior, dir, tipoDesligamento).length;
+      const hcAA   = sumHeadcount(mesesAnoAnterior, dir);
+      const hcMedioAA = hcAA / nAA;
+      ytdAnoAnterior = hcMedioAA > 0 ? deslAA / hcMedioAA : null;
+    }
 
     return {
       diretoria: dir,
       taxa,
       desligamentos: deslAtual,
-      headcountMedio: Math.round(hcAtual / mesesAtual.length),
+      headcountMedio: Math.round(hcMedio),
       variacaoMoM: taxaAnt > 0 ? taxa - taxaAnt : null,
       status: calcStatus(taxa),
+      ytdTotal,
+      ytdVoluntario,
+      ytdInvoluntario,
+      ytdAnterior,
+      ytdAnoAnterior,
     };
   });
 
