@@ -10,15 +10,16 @@ import {
   Cell,
   ResponsiveContainer,
 } from 'recharts';
-import type { ResultadoRanking, ResultadoBreakdown } from '@/lib/types';
+import type { ResultadoRanking, ResultadoBreakdown, Periodo } from '@/lib/types';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
-import { META_TURNOVER_MENSAL } from '@/lib/calculations';
+import { META_TURNOVER_MENSAL, getMesesPeriodo } from '@/lib/calculations';
 
 interface RankingChartGeral {
   mode: 'ranking';
   data: ResultadoRanking;
   narrativeTitle?: string;
   compact?: boolean;
+  periodo?: Periodo;
 }
 
 interface RankingChartBreakdown {
@@ -26,6 +27,7 @@ interface RankingChartBreakdown {
   data: ResultadoBreakdown;
   narrativeTitle?: string;
   compact?: boolean;
+  periodo?: Periodo;
 }
 
 type RankingChartProps = RankingChartGeral | RankingChartBreakdown;
@@ -62,16 +64,18 @@ function DeltaCell({ delta }: { delta: number | null }) {
 
 // ── Ranking table (mode=ranking) ──────────────────────────────────────────────
 
-function RankingTable({ data, narrativeTitle }: { data: ResultadoRanking; narrativeTitle?: string }) {
+function RankingTable({ data, narrativeTitle, periodo: periodoProp }: { data: ResultadoRanking; narrativeTitle?: string; periodo?: Periodo }) {
   const { ranking, periodo } = data;
 
-  // Weighted average: consistent with per-diretoria formula (desl / sumHC_period)
-  const totalHC    = ranking.reduce((s, r) => s + r.headcountMedio, 0);
-  const totalDesl  = ranking.reduce((s, r) => s + r.desligamentos, 0);
-  const totalTaxa  = totalHC > 0
-    ? ranking.reduce((s, r) => s + r.taxa * r.headcountMedio, 0) / totalHC
-    : 0;
-  const totalStatus = calcStatus(totalTaxa);
+  // nMeses: used to scale the meta (meta_mensal × n_meses = meta do período)
+  const nMeses = periodoProp ? getMesesPeriodo(periodoProp).length : 12;
+  const metaPeriodo = META * nMeses;
+
+  // Each row: taxa acumulada = desl / hcMédio  (same formula as BigStatsRow YTD card)
+  const totalHC   = ranking.reduce((s, r) => s + r.headcountMedio, 0);
+  const totalDesl = ranking.reduce((s, r) => s + r.desligamentos, 0);
+  const totalTaxa = totalHC > 0 ? totalDesl / totalHC : 0;
+  const totalStatus = calcStatus(totalTaxa, metaPeriodo);
 
   return (
     <Card>
@@ -93,7 +97,7 @@ function RankingTable({ data, narrativeTitle }: { data: ResultadoRanking; narrat
               <th className="py-2 px-2 text-right font-semibold uppercase tracking-wide"
                 style={{ color: 'var(--color-text-muted)' }}>Saídas</th>
               <th className="py-2 px-2 text-right font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--color-text-muted)' }}>Taxa</th>
+                style={{ color: 'var(--color-text-muted)' }}>Acumulado</th>
               <th className="py-2 px-2 text-right font-semibold uppercase tracking-wide"
                 style={{ color: 'var(--color-text-muted)' }}>Meta</th>
               <th className="py-2 px-2 text-right font-semibold uppercase tracking-wide"
@@ -116,14 +120,15 @@ function RankingTable({ data, narrativeTitle }: { data: ResultadoRanking; narrat
                 {pctStr(totalTaxa)}
               </td>
               <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-muted)' }}>
-                {pctStr(META)}
+                {pctStr(metaPeriodo)}
               </td>
               <td className="py-2 px-2 text-right">—</td>
             </tr>
 
-            {/* Per-diretoria rows */}
+            {/* Per-diretoria rows — taxa = desl / hcMédio (acumulada do período) */}
             {ranking.map((item, i) => {
-              const st = item.status;
+              const acum = item.headcountMedio > 0 ? item.desligamentos / item.headcountMedio : 0;
+              const st   = calcStatus(acum, metaPeriodo);
               return (
                 <tr
                   key={item.diretoria}
@@ -139,13 +144,13 @@ function RankingTable({ data, narrativeTitle }: { data: ResultadoRanking; narrat
                     {item.desligamentos}
                   </td>
                   <td className="py-2 px-2 text-right tabular-nums font-semibold" style={{ color: statusColor(st) }}>
-                    {pctStr(item.taxa)}
+                    {pctStr(acum)}
                   </td>
                   <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-muted)' }}>
-                    {pctStr(META)}
+                    {pctStr(metaPeriodo)}
                   </td>
                   <td className="py-2 px-2 text-right">
-                    <DeltaCell delta={item.variacaoMoM} />
+                    <DeltaCell delta={item.variacaoMoM ? item.variacaoMoM * nMeses : null} />
                   </td>
                 </tr>
               );
@@ -296,7 +301,7 @@ export function RankingChart(props: RankingChartProps) {
       return <CompactBars items={items} />;
     }
 
-    return <RankingTable data={data} narrativeTitle={narrativeTitle} />;
+    return <RankingTable data={data} narrativeTitle={narrativeTitle} periodo={props.periodo} />;
   }
 
   // mode === 'breakdown'

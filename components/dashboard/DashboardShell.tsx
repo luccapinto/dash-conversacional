@@ -52,9 +52,9 @@ function DashboardContent() {
           periodo={periodo}
         />
         {isGeralView && rankingData ? (
-          <RankingChart mode="ranking" data={rankingData} narrativeTitle={insight?.titulos.graficoRanking} />
+          <RankingChart mode="ranking" data={rankingData} periodo={periodo} narrativeTitle={insight?.titulos.graficoRanking} />
         ) : breakdownData ? (
-          <RankingChart mode="breakdown" data={breakdownData} narrativeTitle={insight?.titulos.graficoRanking} />
+          <RankingChart mode="breakdown" data={breakdownData} periodo={periodo} narrativeTitle={insight?.titulos.graficoRanking} />
         ) : null}
       </div>
     </div>
