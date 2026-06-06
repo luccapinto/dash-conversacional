@@ -6,9 +6,14 @@
  * Determinístico com seed fixa (42). Rodar: npx tsx scripts/generate-data.ts
  *
  * Outputs:
- *   lib/data/desligamentos.json  — eventos de desligamento individuais
- *   lib/data/headcount.json      — headcount mensal por diretoria
+ *   lib/data/pessoas.json        — roster completo (ativos + desligados)
+ *   lib/data/desligamentos.json  — derivado: eventos de desligamento
+ *   lib/data/headcount.json      — derivado: headcount mensal por diretoria
+ *   lib/data/populacao.json      — derivado: composição da força ativa
  *   lib/data/meta.json           — estatísticas de validação
+ *
+ * Calibração: ~5.000 funcionários; turnover ~35%/ano (≈20% voluntário +
+ * 15% involuntário); salários no padrão do mercado financeiro brasileiro.
  */
 
 import * as fs from 'fs';
@@ -126,7 +131,7 @@ interface PopulacaoDiretoria {
 const ESTRUTURA = {
   Tecnologia: {
     diretor: 'Ana Beatriz Fontes',
-    headcountInicial: 250,
+    headcountInicial: 1400,
     especialidades: [
       { nome: 'Engenharia de Software',       superintendente: 'Carlos Lima',       peso: 40 },
       { nome: 'Engenharia de Dados & Analytics', superintendente: 'Fernanda Okamoto', peso: 28 },
@@ -139,7 +144,7 @@ const ESTRUTURA = {
   },
   'Distribuição & Assessoria': {
     diretor: 'Ricardo Nogueira',
-    headcountInicial: 180,
+    headcountInicial: 1000,
     especialidades: [
       { nome: 'Assessores de Investimentos',        superintendente: 'Eduardo Batista',   peso: 50 },
       { nome: 'Inside Sales Digital',               superintendente: 'Mariana Fonseca',   peso: 28 },
@@ -151,7 +156,7 @@ const ESTRUTURA = {
   },
   Operações: {
     diretor: 'Marcos Teixeira',
-    headcountInicial: 160,
+    headcountInicial: 900,
     especialidades: [
       { nome: 'Back Office & Custódia',    superintendente: 'Juliana Carvalho', peso: 40 },
       { nome: 'Compliance & Regulatório',  superintendente: 'Roberto Almeida',  peso: 35 },
@@ -163,7 +168,7 @@ const ESTRUTURA = {
   },
   'Financeiro & Risco': {
     diretor: 'Camila Drummond',
-    headcountInicial: 120,
+    headcountInicial: 650,
     especialidades: [
       { nome: 'Controladoria & FP&A',        superintendente: 'Felipe Nakamura', peso: 38 },
       { nome: 'Risco de Mercado & Crédito',   superintendente: 'Luciana Borges',  peso: 37 },
@@ -175,7 +180,7 @@ const ESTRUTURA = {
   },
   Gente: {
     diretor: 'Isabela Ferreira',
-    headcountInicial: 80,
+    headcountInicial: 420,
     especialidades: [
       { nome: 'Recrutamento & Seleção',        superintendente: 'Amanda Silveira', peso: 38 },
       { nome: 'Desenvolvimento Organizacional', superintendente: 'Renato Prado',    peso: 32 },
@@ -187,7 +192,7 @@ const ESTRUTURA = {
   },
   'Produtos & Plataforma': {
     diretor: 'Leonardo Azevedo',
-    headcountInicial: 110,
+    headcountInicial: 630,
     especialidades: [
       { nome: 'Produtos de Investimento',   superintendente: 'Gabriela Machado', peso: 36 },
       { nome: 'Plataforma Digital & UX',    superintendente: 'Henrique Torres',  peso: 37 },
@@ -206,45 +211,41 @@ const ESTRUTURA = {
   modalDist: readonly number[];
 }>;
 
-// ── Salários base por senioridade × posicionamento na faixa (BRL) ─────────────
+// ── Salários (BRL/mês) — modelo: base[senioridade] × área × posição na faixa ──
+// Calibrado para o mercado financeiro brasileiro (2024). Em vez de uma tabela
+// fixa de 150 números, deriva de uma base mensal por senioridade, ajustada por
+// um fator de área (Tech/Produtos pagam mais; Operações/Gente menos) e pela
+// posição na faixa salarial (piso a teto). Mantém realismo e fácil calibração.
 
-const SALARIOS: Record<Senioridade, Record<PosicionamentoFaixa, Record<Diretoria, number>>> = {
-  júnior: {
-    piso:    { Tecnologia: 4500,  'Distribuição & Assessoria': 3500,  Operações: 3200,  'Financeiro & Risco': 4000,  Gente: 3000,  'Produtos & Plataforma': 4200  },
-    q1:      { Tecnologia: 5500,  'Distribuição & Assessoria': 4200,  Operações: 3800,  'Financeiro & Risco': 4800,  Gente: 3600,  'Produtos & Plataforma': 5000  },
-    mediana: { Tecnologia: 6800,  'Distribuição & Assessoria': 5000,  Operações: 4500,  'Financeiro & Risco': 5800,  Gente: 4200,  'Produtos & Plataforma': 6200  },
-    q3:      { Tecnologia: 8000,  'Distribuição & Assessoria': 5800,  Operações: 5200,  'Financeiro & Risco': 6800,  Gente: 4900,  'Produtos & Plataforma': 7200  },
-    teto:    { Tecnologia: 9500,  'Distribuição & Assessoria': 7000,  Operações: 6000,  'Financeiro & Risco': 8000,  Gente: 5800,  'Produtos & Plataforma': 8500  },
-  },
-  pleno: {
-    piso:    { Tecnologia: 9000,  'Distribuição & Assessoria': 6500,  Operações: 5500,  'Financeiro & Risco': 7500,  Gente: 5500,  'Produtos & Plataforma': 8500  },
-    q1:      { Tecnologia: 11000, 'Distribuição & Assessoria': 7800,  Operações: 6800,  'Financeiro & Risco': 9000,  Gente: 6500,  'Produtos & Plataforma': 10000 },
-    mediana: { Tecnologia: 13500, 'Distribuição & Assessoria': 9500,  Operações: 8000,  'Financeiro & Risco': 11000, Gente: 7800,  'Produtos & Plataforma': 12500 },
-    q3:      { Tecnologia: 16000, 'Distribuição & Assessoria': 11000, Operações: 9500,  'Financeiro & Risco': 13000, Gente: 9000,  'Produtos & Plataforma': 14500 },
-    teto:    { Tecnologia: 19000, 'Distribuição & Assessoria': 13000, Operações: 11000, 'Financeiro & Risco': 15000, Gente: 10500, 'Produtos & Plataforma': 17000 },
-  },
-  sênior: {
-    piso:    { Tecnologia: 18000, 'Distribuição & Assessoria': 12000, Operações: 10000, 'Financeiro & Risco': 14000, Gente: 10000, 'Produtos & Plataforma': 16000 },
-    q1:      { Tecnologia: 22000, 'Distribuição & Assessoria': 15000, Operações: 12500, 'Financeiro & Risco': 17000, Gente: 12000, 'Produtos & Plataforma': 19500 },
-    mediana: { Tecnologia: 27000, 'Distribuição & Assessoria': 18000, Operações: 15000, 'Financeiro & Risco': 21000, Gente: 14500, 'Produtos & Plataforma': 24000 },
-    q3:      { Tecnologia: 33000, 'Distribuição & Assessoria': 22000, Operações: 18000, 'Financeiro & Risco': 25000, Gente: 17000, 'Produtos & Plataforma': 29000 },
-    teto:    { Tecnologia: 40000, 'Distribuição & Assessoria': 26000, Operações: 21000, 'Financeiro & Risco': 30000, Gente: 20000, 'Produtos & Plataforma': 35000 },
-  },
-  gerência: {
-    piso:    { Tecnologia: 35000, 'Distribuição & Assessoria': 25000, Operações: 22000, 'Financeiro & Risco': 28000, Gente: 20000, 'Produtos & Plataforma': 32000 },
-    q1:      { Tecnologia: 42000, 'Distribuição & Assessoria': 30000, Operações: 27000, 'Financeiro & Risco': 34000, Gente: 24000, 'Produtos & Plataforma': 38000 },
-    mediana: { Tecnologia: 52000, 'Distribuição & Assessoria': 37000, Operações: 33000, 'Financeiro & Risco': 42000, Gente: 30000, 'Produtos & Plataforma': 47000 },
-    q3:      { Tecnologia: 62000, 'Distribuição & Assessoria': 44000, Operações: 39000, 'Financeiro & Risco': 50000, Gente: 36000, 'Produtos & Plataforma': 56000 },
-    teto:    { Tecnologia: 75000, 'Distribuição & Assessoria': 55000, Operações: 48000, 'Financeiro & Risco': 62000, Gente: 44000, 'Produtos & Plataforma': 68000 },
-  },
-  diretoria: {
-    piso:    { Tecnologia: 70000,  'Distribuição & Assessoria': 60000,  Operações: 55000,  'Financeiro & Risco': 65000,  Gente: 50000,  'Produtos & Plataforma': 65000  },
-    q1:      { Tecnologia: 85000,  'Distribuição & Assessoria': 72000,  Operações: 65000,  'Financeiro & Risco': 78000,  Gente: 60000,  'Produtos & Plataforma': 78000  },
-    mediana: { Tecnologia: 105000, 'Distribuição & Assessoria': 90000,  Operações: 80000,  'Financeiro & Risco': 95000,  Gente: 75000,  'Produtos & Plataforma': 95000  },
-    q3:      { Tecnologia: 130000, 'Distribuição & Assessoria': 110000, Operações: 100000, 'Financeiro & Risco': 120000, Gente: 90000,  'Produtos & Plataforma': 118000 },
-    teto:    { Tecnologia: 160000, 'Distribuição & Assessoria': 140000, Operações: 125000, 'Financeiro & Risco': 150000, Gente: 110000, 'Produtos & Plataforma': 145000 },
-  },
+const SAL_BASE: Record<Senioridade, number> = {
+  'júnior':    4000,
+  'pleno':     8000,
+  'sênior':    15000,
+  'gerência':  26000,
+  'diretoria': 55000,
 };
+
+const SAL_FATOR_AREA: Record<Diretoria, number> = {
+  'Tecnologia':                 1.18,
+  'Produtos & Plataforma':      1.10,
+  'Financeiro & Risco':         1.05,
+  'Distribuição & Assessoria':  1.00,
+  'Operações':                  0.88,
+  'Gente':                      0.85,
+};
+
+const SAL_FATOR_FAIXA: Record<PosicionamentoFaixa, number> = {
+  piso:    0.72,
+  q1:      0.86,
+  mediana: 1.00,
+  q3:      1.18,
+  teto:    1.40,
+};
+
+/** Salário-base de referência (mediana com jitter aplicado em createPessoa) */
+function salarioBase(sen: Senioridade, pos: PosicionamentoFaixa, dir: Diretoria): number {
+  return Math.round(SAL_BASE[sen] * SAL_FATOR_AREA[dir] * SAL_FATOR_FAIXA[pos] / 100) * 100;
+}
 
 // ── Composição base da população ativa (quem fica) ────────────────────────────
 // Distribuições do workforce ATIVO por dimensão. Calibradas para serem
@@ -267,31 +268,34 @@ const POP_BASE = {
 function baseTurnoverRate(diretoria: Diretoria, monthIndex: number, noise: number): number {
   const jitter = noise * 0.008 - 0.004; // ±0.4pp de ruído
 
+  // Alvo de turnover ANUAL da empresa ≈ 35%. As áreas-problema puxam para cima
+  // (Tech ~60%/ano, Distribuição ~40%), as saudáveis ancoram embaixo (Gente
+  // ~14%, Financeiro ~18%). Ranking preservado.
   switch (diretoria) {
     case 'Tecnologia': {
-      // Escala a partir de Jul/2023 (idx 7), pico ~6% em Dez/2023, mantém ~4.5-5.5% em 2024
-      if (monthIndex < 7) return Math.max(0.010, 0.018 + jitter);
+      // Escala a partir de Jul/2023 (idx 7); 2024 fica ~4.0-5.0%/mês (~52%/ano)
+      if (monthIndex < 7) return Math.max(0.010, 0.016 + jitter);
       const months = monthIndex - 6;
-      const escalation = Math.min(months * 0.0042, 0.045);
-      return Math.max(0.018, Math.min(0.065, 0.018 + escalation + jitter));
+      const escalation = Math.min(months * 0.0036, 0.036);
+      return Math.max(0.016, Math.min(0.054, 0.016 + escalation + jitter));
     }
     case 'Distribuição & Assessoria': {
-      // Pico em Janeiro (idx 1 e 13), base 1.8%
+      // Pico em Janeiro (cortes sazonais), base ~2.4%/mês (~35%/ano)
       const month = ((monthIndex - 1) % 12) + 1;
-      if (month === 1) return Math.max(0.040, 0.055 + jitter * 2);
-      if (month === 12) return Math.max(0.025, 0.030 + jitter); // Dez: assessores já antecipando
-      return Math.max(0.010, 0.018 + jitter);
+      if (month === 1) return Math.max(0.045, 0.060 + jitter * 2);
+      if (month === 12) return Math.max(0.026, 0.035 + jitter); // Dez: assessores antecipando
+      return Math.max(0.015, 0.024 + jitter);
     }
     case 'Operações': {
-      // Escala a partir de Jul/2024 (idx 19)
-      if (monthIndex < 19) return Math.max(0.008, 0.015 + jitter);
+      // Escala a partir de Jul/2024 (idx 19); base ~1.8%/mês (~27%/ano)
+      if (monthIndex < 19) return Math.max(0.011, 0.018 + jitter);
       const months = monthIndex - 18;
-      const escalation = Math.min(months * 0.0045, 0.030);
-      return Math.max(0.015, Math.min(0.048, 0.015 + escalation + jitter));
+      const escalation = Math.min(months * 0.0038, 0.022);
+      return Math.max(0.018, Math.min(0.046, 0.018 + escalation + jitter));
     }
-    case 'Financeiro & Risco': return Math.max(0.006, 0.012 + jitter);
-    case 'Gente':               return Math.max(0.005, 0.010 + jitter);
-    case 'Produtos & Plataforma': return Math.max(0.008, 0.015 + jitter);
+    case 'Financeiro & Risco': return Math.max(0.008, 0.013 + jitter);  // ~16%/ano
+    case 'Gente':               return Math.max(0.006, 0.011 + jitter); // ~13%/ano
+    case 'Produtos & Plataforma': return Math.max(0.010, 0.016 + jitter); // ~19%/ano
   }
 }
 
@@ -371,7 +375,7 @@ function createPessoa(diretoria: Diretoria, dataAdmissao: string, seq: number, t
   const modalidadeTrabalho = rng.weighted(MODALIDADES, [...est.modalDist]);
   const cargo = rng.choice(est.cargos);
 
-  const salBase = SALARIOS[senioridade][posicionamentoFaixa][diretoria];
+  const salBase = salarioBase(senioridade, posicionamentoFaixa, diretoria);
   const salarioBRL = Math.round(salBase * (1 + rng.next() * 0.06 - 0.03) / 100) * 100;
 
   const clusterLideranca: ClusterLideranca =
@@ -475,34 +479,50 @@ function assignDeparture(p: Pessoa, diretoria: Diretoria, monthIndex: number, mo
   const lowperf = p.nivelPerformance === 'abaixo';
   const lowsat = p.nivelSatisfacao === 'baixo';
 
-  // Distribuição em Janeiro: cortes (involuntário, perf baixa) + migração (voluntário, carreira)
+  // Mix-alvo da empresa: ~57% voluntário / ~43% involuntário (20pp + 15pp de 35%).
+  // A fuga de talento (Tech, alta perf) é voluntária; a empresa também gere saída
+  // de baixa performance e reestrutura áreas operacionais (involuntário).
+
+  // Tecnologia — fuga de talento: alto performer PEDE demissão (remuneração)
+  if (diretoria === 'Tecnologia' && highperf) {
+    p.tipoDesligamento = rng.next() < 0.80 ? 'voluntário' : 'involuntário';
+    p.motivoDesligamento = p.tipoDesligamento === 'involuntário' ? 'performance'
+      : underpaid ? 'remuneração' : (rng.next() < 0.5 ? 'carreira' : 'remuneração');
+    return;
+  }
+
+  // Distribuição em Janeiro: cortes sazonais (involuntário) + migração (voluntário)
   if (diretoria === 'Distribuição & Assessoria' && month === 1) {
-    const involuntario = lowperf ? rng.next() < 0.85 : rng.next() < 0.55;
+    const involuntario = lowperf ? rng.next() < 0.88 : rng.next() < 0.62;
     p.tipoDesligamento = involuntario ? 'involuntário' : 'voluntário';
     p.motivoDesligamento = involuntario ? 'performance' : (rng.next() < 0.7 ? 'carreira' : 'remuneração');
     return;
   }
 
-  // Operações na escalada (Jul/2024+): cultura em alta
-  if (diretoria === 'Operações' && monthIndex >= 19) {
-    p.tipoDesligamento = lowperf ? (rng.next() < 0.6 ? 'involuntário' : 'voluntário') : (rng.next() < 0.8 ? 'voluntário' : 'involuntário');
-    p.motivoDesligamento = lowsat ? 'cultura' : underpaid ? 'remuneração' : (rng.next() < 0.5 ? 'cultura' : 'carreira');
-    return;
-  }
-
+  // Baixa performance: gestão de saída (predominantemente involuntário)
   if (lowperf) {
-    p.tipoDesligamento = rng.next() < 0.6 ? 'involuntário' : 'voluntário';
+    p.tipoDesligamento = rng.next() < 0.80 ? 'involuntário' : 'voluntário';
     p.motivoDesligamento = p.tipoDesligamento === 'involuntário' ? 'performance' : (rng.next() < 0.5 ? 'carreira' : 'pessoal');
     return;
   }
 
-  p.tipoDesligamento = rng.next() < 0.85 ? 'voluntário' : 'involuntário';
-  p.motivoDesligamento =
-    underpaid && highperf ? 'remuneração' :
-    lowsat                ? (rng.next() < 0.5 ? 'cultura' : 'carreira') :
-    underpaid             ? (rng.next() < 0.6 ? 'remuneração' : 'carreira') :
-    highperf              ? (rng.next() < 0.5 ? 'carreira' : 'remuneração') :
-                            (rng.next() < 0.4 ? 'carreira' : rng.next() < 0.7 ? 'pessoal' : 'outro');
+  // Operações na escalada (Jul/2024+): cultura + reestruturação
+  if (diretoria === 'Operações' && monthIndex >= 19) {
+    p.tipoDesligamento = rng.next() < 0.58 ? 'involuntário' : 'voluntário';
+    p.motivoDesligamento = p.tipoDesligamento === 'involuntário' ? (rng.next() < 0.5 ? 'performance' : 'outro')
+      : lowsat ? 'cultura' : underpaid ? 'remuneração' : 'carreira';
+    return;
+  }
+
+  // Geral: empresa em reestruturação. Insatisfeito/subpago tende a PEDIR demissão
+  // (voluntário); os demais entram mais no corte (involuntário).
+  let pInvol = 0.60;
+  if (lowsat) pInvol -= 0.20;
+  if (underpaid) pInvol -= 0.10;
+  p.tipoDesligamento = rng.next() < pInvol ? 'involuntário' : 'voluntário';
+  p.motivoDesligamento = p.tipoDesligamento === 'involuntário'
+    ? (rng.next() < 0.55 ? 'performance' : 'outro')
+    : underpaid ? 'remuneração' : lowsat ? 'cultura' : (rng.next() < 0.4 ? 'carreira' : rng.next() < 0.7 ? 'pessoal' : 'outro');
 }
 
 // ── Amostragem ponderada sem reposição ─────────────────────────────────────────
