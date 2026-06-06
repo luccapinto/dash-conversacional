@@ -69,7 +69,8 @@ Toda resposta numérica vem de `lib/calculations`. Além das funções descritiv
 (turnover, tendência, ranking, YTD), há uma camada **diagnóstica** que cruza os
 dados com a população base:
 
-- `getSegmentRates` / `getDrivers` — taxa real e *lift* por segmento (não composição).
+- `getSegmentRates` / `getDrivers` / `breakdownByDimension` — taxa real e *lift* por segmento (não composição). As taxas por segmento reconciliam com a taxa da diretoria: a média ponderada por headcount = taxa da diretoria.
+- `rankDiretoriasByTurnover` — ranking **YTD** (acumulado de Jan até o último mês do período). `ytdAnterior` é o YTD do **mês anterior** (M-1) e `ytdAnoAnterior` é o YTD do mesmo período no ano anterior (YoY) — métricas distintas. A linha de total reconcilia com `getYTD('Geral')`.
 - `crossBreakdown` — interseção de duas dimensões (ex: sênior × piso da faixa).
 - `compareGroups` — dois recortes lado a lado.
 - `getCohortByTenure` — early attrition por tempo de casa.

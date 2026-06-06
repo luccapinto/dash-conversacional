@@ -12,8 +12,8 @@
  *   lib/data/populacao.json      — derivado: composição da força ativa
  *   lib/data/meta.json           — estatísticas de validação
  *
- * Calibração: ~5.000 funcionários; turnover ~35%/ano (≈20% voluntário +
- * 15% involuntário); salários no padrão do mercado financeiro brasileiro.
+ * Calibração: ~5.000 funcionários; turnover ~35%/ano (≈70% voluntário /
+ * 30% involuntário); salários no padrão do mercado financeiro brasileiro.
  */
 
 import * as fs from 'fs';
@@ -479,13 +479,13 @@ function assignDeparture(p: Pessoa, diretoria: Diretoria, monthIndex: number, mo
   const lowperf = p.nivelPerformance === 'abaixo';
   const lowsat = p.nivelSatisfacao === 'baixo';
 
-  // Mix-alvo da empresa: ~57% voluntário / ~43% involuntário (20pp + 15pp de 35%).
-  // A fuga de talento (Tech, alta perf) é voluntária; a empresa também gere saída
-  // de baixa performance e reestrutura áreas operacionais (involuntário).
+  // Mix-alvo da empresa: ~70% voluntário / ~30% involuntário.
+  // A fuga de talento (Tech, alta perf) é voluntária; o involuntário vem de
+  // gestão de baixa performance e dos cortes sazonais de Distribuição.
 
   // Tecnologia — fuga de talento: alto performer PEDE demissão (remuneração)
   if (diretoria === 'Tecnologia' && highperf) {
-    p.tipoDesligamento = rng.next() < 0.80 ? 'voluntário' : 'involuntário';
+    p.tipoDesligamento = rng.next() < 0.90 ? 'voluntário' : 'involuntário';
     p.motivoDesligamento = p.tipoDesligamento === 'involuntário' ? 'performance'
       : underpaid ? 'remuneração' : (rng.next() < 0.5 ? 'carreira' : 'remuneração');
     return;
@@ -493,32 +493,31 @@ function assignDeparture(p: Pessoa, diretoria: Diretoria, monthIndex: number, mo
 
   // Distribuição em Janeiro: cortes sazonais (involuntário) + migração (voluntário)
   if (diretoria === 'Distribuição & Assessoria' && month === 1) {
-    const involuntario = lowperf ? rng.next() < 0.88 : rng.next() < 0.62;
+    const involuntario = lowperf ? rng.next() < 0.80 : rng.next() < 0.50;
     p.tipoDesligamento = involuntario ? 'involuntário' : 'voluntário';
     p.motivoDesligamento = involuntario ? 'performance' : (rng.next() < 0.7 ? 'carreira' : 'remuneração');
     return;
   }
 
-  // Baixa performance: gestão de saída (predominantemente involuntário)
+  // Baixa performance: gestão de saída (mais involuntário, mas parte pede as contas)
   if (lowperf) {
-    p.tipoDesligamento = rng.next() < 0.80 ? 'involuntário' : 'voluntário';
+    p.tipoDesligamento = rng.next() < 0.64 ? 'involuntário' : 'voluntário';
     p.motivoDesligamento = p.tipoDesligamento === 'involuntário' ? 'performance' : (rng.next() < 0.5 ? 'carreira' : 'pessoal');
     return;
   }
 
-  // Operações na escalada (Jul/2024+): cultura + reestruturação
+  // Operações na escalada (Jul/2024+): cultura em alta (mais voluntário)
   if (diretoria === 'Operações' && monthIndex >= 19) {
-    p.tipoDesligamento = rng.next() < 0.58 ? 'involuntário' : 'voluntário';
+    p.tipoDesligamento = rng.next() < 0.40 ? 'involuntário' : 'voluntário';
     p.motivoDesligamento = p.tipoDesligamento === 'involuntário' ? (rng.next() < 0.5 ? 'performance' : 'outro')
       : lowsat ? 'cultura' : underpaid ? 'remuneração' : 'carreira';
     return;
   }
 
-  // Geral: empresa em reestruturação. Insatisfeito/subpago tende a PEDIR demissão
-  // (voluntário); os demais entram mais no corte (involuntário).
-  let pInvol = 0.60;
-  if (lowsat) pInvol -= 0.20;
-  if (underpaid) pInvol -= 0.10;
+  // Geral: maioria pede demissão (voluntário). Insatisfeito/subpago ainda mais.
+  let pInvol = 0.385;
+  if (lowsat) pInvol -= 0.14;
+  if (underpaid) pInvol -= 0.08;
   p.tipoDesligamento = rng.next() < pInvol ? 'involuntário' : 'voluntário';
   p.motivoDesligamento = p.tipoDesligamento === 'involuntário'
     ? (rng.next() < 0.55 ? 'performance' : 'outro')

@@ -1,56 +1,56 @@
 {
   "empresa": "Verta S.A.",
-  "geradoEm": "2026-06-06T02:34:30.499Z",
+  "geradoEm": "2026-06-06T03:03:42.495Z",
   "seed": 42,
   "janela": {
     "inicio": "2023-01",
     "fim": "2024-12",
     "meses": 24
   },
-  "totalPessoas": 8718,
-  "totalAtivos": 5623,
-  "totalDesligamentos": 3095,
+  "totalPessoas": 8730,
+  "totalAtivos": 5605,
+  "totalDesligamentos": 3125,
   "diretorias": [
     {
       "diretoria": "Tecnologia",
-      "totalDesligamentos": 1353,
-      "taxaMediaMensal": 3.71,
-      "headcountFinal": 1659,
+      "totalDesligamentos": 1326,
+      "taxaMediaMensal": 3.64,
+      "headcountFinal": 1656,
       "consistente": true
     },
     {
       "diretoria": "Distribuição & Assessoria",
-      "totalDesligamentos": 704,
-      "taxaMediaMensal": 2.8,
-      "headcountFinal": 1099,
+      "totalDesligamentos": 717,
+      "taxaMediaMensal": 2.85,
+      "headcountFinal": 1100,
       "consistente": true
     },
     {
       "diretoria": "Operações",
-      "totalDesligamentos": 481,
-      "taxaMediaMensal": 2.13,
-      "headcountFinal": 989,
+      "totalDesligamentos": 495,
+      "taxaMediaMensal": 2.2,
+      "headcountFinal": 986,
       "consistente": true
     },
     {
       "diretoria": "Financeiro & Risco",
-      "totalDesligamentos": 187,
-      "taxaMediaMensal": 1.14,
-      "headcountFinal": 718,
+      "totalDesligamentos": 210,
+      "taxaMediaMensal": 1.29,
+      "headcountFinal": 713,
       "consistente": true
     },
     {
       "diretoria": "Gente",
-      "totalDesligamentos": 121,
-      "taxaMediaMensal": 1.14,
-      "headcountFinal": 466,
+      "totalDesligamentos": 124,
+      "taxaMediaMensal": 1.18,
+      "headcountFinal": 459,
       "consistente": true
     },
     {
       "diretoria": "Produtos & Plataforma",
-      "totalDesligamentos": 249,
-      "taxaMediaMensal": 1.57,
-      "headcountFinal": 692,
+      "totalDesligamentos": 253,
+      "taxaMediaMensal": 1.6,
+      "headcountFinal": 691,
       "consistente": true
     }
   ]

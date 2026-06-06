@@ -29,6 +29,7 @@ import type {
   ResultadoTendencia,
   ResultadoProjecao,
   ResultadoRanking,
+  TotalRanking,
   ResultadoBreakdown,
   ItemBreakdown,
   ItemRanking,
@@ -386,62 +387,72 @@ export function rankDiretoriasByTurnover(
   periodo: Periodo,
   tipoDesligamento?: TipoDesligamento,
 ): ResultadoRanking {
-  const { mesesAtual, mesesAnterior, mesesAnoAnterior, label } = resolvePeriodo(periodo);
+  const { mesesAtual, label } = resolvePeriodo(periodo);
 
   const DIRETORIAS: Diretoria[] = [
     'Tecnologia', 'Distribuição & Assessoria', 'Operações',
     'Financeiro & Risco', 'Gente', 'Produtos & Plataforma',
   ];
 
-  const n    = mesesAtual.length;
-  const nAnt = mesesAnterior.length;
-  const nAA  = mesesAnoAnterior?.length ?? 0;
+  // YTD ancorado no último mês do período: Jan(ano) → último mês.
+  const lastMes = mesesAtual[mesesAtual.length - 1];
+  const year = parseInt(lastMes.slice(0, 4));
+  const lastMonthNum = parseInt(lastMes.slice(5));
+  const pad = (m: number) => String(m).padStart(2, '0');
+
+  const ytdMonths = generateRange(`${year}-01`, lastMes);
+  const prevYtdMonths = lastMonthNum > 1 ? generateRange(`${year}-01`, `${year}-${pad(lastMonthNum - 1)}`) : null;
+  const yoyMonths = year - 1 >= 2023 ? generateRange(`${year - 1}-01`, `${year - 1}-${pad(lastMonthNum)}`) : null;
+
+  const nYtd = ytdMonths.length;
+  const metaYTD = META_TURNOVER_MENSAL * nYtd;
+  const metaFY = META_TURNOVER_MENSAL * 12;
+  const ytdStatus = (rate: number) => rate <= metaYTD ? 'good' : rate <= metaYTD * 1.5 ? 'warn' : 'bad';
+
+  /** Taxa YTD acumulada (desligamentos / headcount médio mensal da janela) */
+  function ytdRate(months: string[], dir: Diretoria, tipo?: TipoDesligamento): { rate: number; desl: number; avgHC: number } {
+    const desl = filterDesligamentos(months, dir, tipo).length;
+    const avgHC = months.length > 0 ? sumHeadcount(months, dir) / months.length : 0;
+    return { rate: avgHC > 0 ? desl / avgHC : 0, desl, avgHC };
+  }
 
   const ranking: ItemRanking[] = DIRETORIAS.map(dir => {
-    const deslAtual    = filterDesligamentos(mesesAtual,    dir, tipoDesligamento).length;
-    const deslAnterior = filterDesligamentos(mesesAnterior, dir, tipoDesligamento).length;
-    const deslVol      = filterDesligamentos(mesesAtual,    dir, 'voluntário').length;
-    const deslInvol    = filterDesligamentos(mesesAtual,    dir, 'involuntário').length;
-
-    const hcAtual    = sumHeadcount(mesesAtual,    dir);
-    const hcAnterior = sumHeadcount(mesesAnterior, dir);
-
-    const hcMedio    = n    > 0 ? hcAtual    / n    : 0;
-    const hcMedioAnt = nAnt > 0 ? hcAnterior / nAnt : 0;
-
-    const taxa    = calcTaxa(deslAtual,    hcAtual);
-    const taxaAnt = calcTaxa(deslAnterior, hcAnterior);
-
-    const ytdTotal       = hcMedio > 0 ? deslAtual  / hcMedio : 0;
-    const ytdVoluntario  = hcMedio > 0 ? deslVol    / hcMedio : 0;
-    const ytdInvoluntario= hcMedio > 0 ? deslInvol  / hcMedio : 0;
-    const ytdAnterior    = hcMedioAnt > 0 ? deslAnterior / hcMedioAnt : null;
-
-    let ytdAnoAnterior: number | null = null;
-    if (mesesAnoAnterior && nAA > 0) {
-      const deslAA = filterDesligamentos(mesesAnoAnterior, dir, tipoDesligamento).length;
-      const hcAA   = sumHeadcount(mesesAnoAnterior, dir);
-      const hcMedioAA = hcAA / nAA;
-      ytdAnoAnterior = hcMedioAA > 0 ? deslAA / hcMedioAA : null;
-    }
-
+    const cur  = ytdRate(ytdMonths, dir, tipoDesligamento);
+    const vol  = ytdRate(ytdMonths, dir, 'voluntário');
+    const inv  = ytdRate(ytdMonths, dir, 'involuntário');
+    const prev = prevYtdMonths ? ytdRate(prevYtdMonths, dir, tipoDesligamento).rate : null;
+    const yoy  = yoyMonths ? ytdRate(yoyMonths, dir, tipoDesligamento).rate : null;
     return {
       diretoria: dir,
-      taxa,
-      desligamentos: deslAtual,
-      headcountMedio: Math.round(hcMedio),
-      variacaoMoM: taxaAnt > 0 ? taxa - taxaAnt : null,
-      status: calcStatus(taxa),
-      ytdTotal,
-      ytdVoluntario,
-      ytdInvoluntario,
-      ytdAnterior,
-      ytdAnoAnterior,
+      taxa: cur.rate,
+      desligamentos: cur.desl,
+      headcountMedio: Math.round(cur.avgHC),
+      variacaoMoM: prev !== null ? cur.rate - prev : null,
+      status: ytdStatus(cur.rate),
+      ytdTotal: cur.rate,
+      ytdVoluntario: vol.rate,
+      ytdInvoluntario: inv.rate,
+      ytdAnterior: prev,
+      ytdAnoAnterior: yoy,
     };
   });
 
   ranking.sort((a, b) => b.taxa - a.taxa);
-  return { ranking, periodo: label };
+
+  // Linha de total (empresa) — calculada direto sobre 'Geral', reconcilia com getYTD
+  const curG  = ytdRate(ytdMonths, 'Geral', tipoDesligamento);
+  const total: TotalRanking = {
+    headcountMedio: Math.round(curG.avgHC),
+    desligamentos: curG.desl,
+    ytdTotal: curG.rate,
+    ytdVoluntario: ytdRate(ytdMonths, 'Geral', 'voluntário').rate,
+    ytdInvoluntario: ytdRate(ytdMonths, 'Geral', 'involuntário').rate,
+    ytdAnterior: prevYtdMonths ? ytdRate(prevYtdMonths, 'Geral', tipoDesligamento).rate : null,
+    ytdAnoAnterior: yoyMonths ? ytdRate(yoyMonths, 'Geral', tipoDesligamento).rate : null,
+    status: ytdStatus(curG.rate),
+  };
+
+  return { ranking, periodo: label, numMesesYTD: nYtd, metaYTD, metaFY, total };
 }
 
 /**
@@ -496,10 +507,18 @@ export function breakdownByDimension(
     keys.sort((a, b) => buckets.get(b)!.length - buckets.get(a)!.length);
   }
 
+  // Headcount-meses da diretoria e composição da população para taxas reais.
+  // taxaTurnover do segmento = saídas_seg / (popShare_seg × hcTotal). Assim a
+  // média ponderada das taxas por segmento reconcilia com a taxa da diretoria
+  // (Σ popShare × taxaSeg = Σ saídas_seg / hcTotal = taxa da diretoria).
+  const hcTotal = sumHeadcount(mesesAtual, diretoria);
+  const popDist = getPopDist(diretoria, dimensao);
+
   const itens: ItemBreakdown[] = keys.map(label => {
     const grupo = buckets.get(label)!;
-    const hcTotal = sumHeadcount(mesesAtual, diretoria);
-    const taxaTurnover = hcTotal > 0 ? grupo.length / hcTotal : undefined;
+    const popShare = popDist?.[label];
+    const segHC = popShare !== undefined ? popShare * hcTotal : undefined;
+    const taxaTurnover = segHC !== undefined && segHC > 0 ? grupo.length / segHC : undefined;
     const salarioMedioAteSaida = grupo.length > 0
       ? Math.round(grupo.reduce((s, d) => s + d.salarioBRL, 0) / grupo.length / 100) * 100
       : undefined;

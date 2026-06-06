@@ -200,7 +200,11 @@ export interface ResultadoProjecao {
   serieProjetada: Array<{ mes: string; label: string; taxaProjetada: number }>;
 }
 
-/** rankDiretoriasByTurnover → ranking com contexto */
+/** rankDiretoriasByTurnover → ranking com contexto.
+ *  Todas as taxas são YTD (acumulado de Janeiro até o último mês do período):
+ *  ytdTotal/Vol/Invol são taxas reais (desligamentos / headcount médio mensal),
+ *  ytdAnterior é o YTD do MÊS ANTERIOR e ytdAnoAnterior é o YTD do mesmo
+ *  período do ano anterior. taxa === ytdTotal (usada na ordenação e nas barras). */
 export interface ItemRanking {
   diretoria: Diretoria;
   taxa: number;
@@ -208,17 +212,32 @@ export interface ItemRanking {
   headcountMedio: number;
   variacaoMoM: number | null;
   status: 'good' | 'bad' | 'warn';
-  // YTD breakdown (desl / hcMedio para cada corte)
+  ytdTotal: number;
+  ytdVoluntario: number;
+  ytdInvoluntario: number;
+  ytdAnterior: number | null;     // YTD acumulado até o mês anterior
+  ytdAnoAnterior: number | null;  // YTD do mesmo período no ano anterior
+}
+
+/** Linha de total (empresa) do ranking — reconciliada com getYTD('Geral') */
+export interface TotalRanking {
+  headcountMedio: number;
+  desligamentos: number;
   ytdTotal: number;
   ytdVoluntario: number;
   ytdInvoluntario: number;
   ytdAnterior: number | null;
   ytdAnoAnterior: number | null;
+  status: 'good' | 'bad' | 'warn';
 }
 
 export interface ResultadoRanking {
   ranking: ItemRanking[];
   periodo: string;
+  numMesesYTD: number;   // meses acumulados no YTD (Jan → último mês do período)
+  metaYTD: number;       // meta acumulada até o período (META_MENSAL × numMesesYTD)
+  metaFY: number;        // meta do ano cheio (META_MENSAL × 12)
+  total: TotalRanking;   // linha da empresa (Geral)
 }
 
 /** breakdownByDimension → análise por dimensão */
