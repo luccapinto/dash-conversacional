@@ -15,16 +15,31 @@ Dashboard executivo de turnover com IA conversacional, sem banco de dados nem ba
 - Os dados são lidos em Server Components (zero custo de fetch em runtime para o usuário).
 
 ```
-scripts/generate-data.ts  →  lib/data/headcount.json    (headcount agregado mês × diretoria)
-                          →  lib/data/desligamentos.json (eventos individuais de saída)
-                          →  lib/data/populacao.json     (composição da força ATIVA por dimensão)
+scripts/generate-data.ts  →  lib/data/pessoas.json      (ROSTER: toda pessoa, ativa ou desligada)
+                          →  lib/data/desligamentos.json (derivado: só quem saiu)
+                          →  lib/data/headcount.json     (derivado: headcount mês × diretoria)
+                          →  lib/data/populacao.json     (derivado: composição da força ativa)
 ```
 
-> **Por que `populacao.json`?** Sem a composição de quem *fica*, só conseguimos
-> medir a *composição* de quem saiu ("60% eram júnior"), nunca a *taxa* por
-> segmento ("júniors saem 2× mais") nem o *lift* (sobre-representação). A
-> população base destrava `getSegmentRates` e `getDrivers` — a diferença entre
-> uma análise descritiva e uma diagnóstica.
+> **Simulação por hazard (roster individual).** O gerador simula cada pessoa mês
+> a mês: o número de saídas por diretoria-mês segue a curva-alvo de turnover, mas
+> *quem* sai é selecionado por um **hazard** dirigido pelos atributos (alta
+> performance subpaga e insatisfeita sai muito mais). As anomalias da narrativa
+> (fuga de talento em Tecnologia, sazonalidade de Janeiro, escalada de Operações)
+> passam a ser **emergentes**, não hardcoded. `desligamentos/headcount/populacao`
+> são derivados do roster — fonte única.
+
+> **Por que o roster completo (`pessoas.json`)?** Ter só quem saiu permite medir
+> *composição* ("60% eram júnior"); ter a população ativa por dimensão permite
+> *taxa* por segmento e *lift* (`getSegmentRates`, `getDrivers`); e ter o roster
+> individual permite a **taxa real de qualquer junção** ("alta performance × piso
+> salarial sai 7× acima do esperado" — `crossBreakdown`), além de habilitar uma
+> watchlist preditiva de retenção sobre quem ainda está ativo.
+
+> **Isolamento de bundle.** `pessoas.json` (~1MB) é carregado só por
+> `lib/calculations/roster.ts`, um módulo **server-only** usado apenas pela rota
+> de chat. O `lib/calculations/index.ts` (puxado pelo dashboard client) não o
+> importa, mantendo o bundle do navegador enxuto.
 
 ### 2. Insights proativos — JSON estático indexado por filtro
 

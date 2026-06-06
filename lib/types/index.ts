@@ -76,6 +76,48 @@ export interface RegistroDesligamento {
   motivoDesligamento: MotivoDesligamento;
 }
 
+// ─── Roster individual (todas as pessoas, ativas e desligadas) ───────────────
+
+/** Status de vínculo de uma pessoa */
+export type StatusPessoa = 'ativo' | 'desligado';
+
+/**
+ * Uma pessoa no roster — shape exato de lib/data/pessoas.json.
+ * Estende o registro de desligamento com vínculo e datas: para os ativos,
+ * tipoDesligamento/motivoDesligamento/mesDesligamento são null.
+ *
+ * Ter a população completa (não só quem saiu) permite TAXA real por qualquer
+ * cruzamento de atributos e a base para watchlist preditiva de retenção.
+ */
+export interface RegistroPessoa {
+  id: string;
+  status: StatusPessoa;
+  diretoria: Diretoria;
+  especialidade: string;
+  diretor: string;
+  superintendente: string;
+  cargo: string;
+  senioridade: Senioridade;
+  clusterLideranca: ClusterLideranca;
+  eSocio: boolean;
+  modalidadeTrabalho: ModalidadeTrabalho;
+  salarioBRL: number;
+  posicionamentoFaixa: PosicionamentoFaixa;
+  dataAdmissao: string;            // "YYYY-MM"
+  mesDesligamento: string | null;  // null se ativo
+  tempoEmpresaMeses: number;
+  tempoNoCargaMeses: number;
+  tempoDesdePromocaoMeses: number;
+  tempoDesdeAumentoMeses: number;
+  trocasDeLiderUltimos12Meses: number;
+  nivelPerformance: NivelPerformance;
+  tendenciaPerformance: TendenciaPerformance;
+  nivelSatisfacao: NivelSatisfacao;
+  npsInterno: number;
+  tipoDesligamento: TipoDesligamento | null;
+  motivoDesligamento: MotivoDesligamento | null;
+}
+
 // ─── Headcount mensal ────────────────────────────────────────────────────────
 
 /** Shape exato do lib/data/headcount.json */
@@ -263,6 +305,10 @@ export interface CelulaCross {
   valor2: string;
   desligamentos: number;
   percentual: number;
+  /** taxa mensal real do cruzamento (null se alguma dimensão não existe na população) */
+  taxaCelula?: number | null;
+  /** lift do cruzamento vs. a taxa geral da diretoria (junção real, não marginais) */
+  lift?: number | null;
 }
 
 export interface ResultadoCrossBreakdown {

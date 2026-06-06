@@ -9,13 +9,13 @@ import {
   getHeadcount,
   getSegmentRates,
   getDrivers,
-  crossBreakdown,
   compareGroups,
   getCohortByTenure,
   quantifyCost,
   getRegrettedAttrition,
   META_TURNOVER_MENSAL,
 } from '@/lib/calculations';
+import { crossBreakdown } from '@/lib/calculations/roster';
 import { TOOL_DEFINITIONS } from '@/lib/calculations/toolDefinitions';
 import type {
   Periodo, Diretoria, TipoDesligamento, ChatGraph, DimensaoBreakdown,
@@ -267,7 +267,7 @@ function deriveGraphSpec(toolResults: ToolResult[]): ChatGraph | null {
           label: `${c.valor1} × ${c.valor2}`,
           value: c.percentual,
           highlight: i === 0,
-          sub: `n=${c.desligamentos}`,
+          sub: c.lift != null ? `lift ${c.lift}× · n=${c.desligamentos}` : `n=${c.desligamentos}`,
         })),
       };
     }

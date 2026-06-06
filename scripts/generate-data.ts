@@ -295,100 +295,94 @@ function baseTurnoverRate(diretoria: Diretoria, monthIndex: number, noise: numbe
   }
 }
 
-// ── Geração de um registro de desligamento ────────────────────────────────────
+// ── Roster individual — simulação por hazard ──────────────────────────────────
+// Cada pessoa é uma linha. A cada mês, quem sai é SELECIONADO entre os ativos
+// com peso proporcional ao seu hazard (probabilidade de sair, dirigida pelos
+// atributos). O número de saídas por diretoria-mês ainda segue baseTurnoverRate,
+// então a curva agregada de turnover é preservada — mas QUEM sai (e a composição
+// das saídas: alta performance, subpago, insatisfeito) emerge dos atributos,
+// em vez de ser hardcoded. As anomalias da narrativa passam a ser emergentes.
 
-function generateDesligamento(
-  diretoria: Diretoria,
-  mes: string,
-  monthIndex: number,
-  seq: number,
-): Desligamento {
+interface Pessoa {
+  id: string;
+  status: 'ativo' | 'desligado';
+  diretoria: Diretoria;
+  especialidade: string;
+  diretor: string;
+  superintendente: string;
+  cargo: string;
+  senioridade: Senioridade;
+  clusterLideranca: ClusterLideranca;
+  eSocio: boolean;
+  modalidadeTrabalho: Modalidade;
+  salarioBRL: number;
+  posicionamentoFaixa: PosicionamentoFaixa;
+  dataAdmissao: string;            // "YYYY-MM"
+  mesDesligamento: string | null;  // null se ativo
+  tempoEmpresaMeses: number;
+  tempoNoCargaMeses: number;
+  tempoDesdePromocaoMeses: number;
+  tempoDesdeAumentoMeses: number;
+  trocasDeLiderUltimos12Meses: number;
+  nivelPerformance: Performance;
+  tendenciaPerformance: TendenciaPerformance;
+  nivelSatisfacao: Satisfacao;
+  npsInterno: number;
+  tipoDesligamento: TipoDesligamento | null;
+  motivoDesligamento: Motivo | null;
+}
+
+const SENIORIDADES: Senioridade[]        = ['júnior', 'pleno', 'sênior', 'gerência', 'diretoria'];
+const POSICOES: PosicionamentoFaixa[]    = ['piso', 'q1', 'mediana', 'q3', 'teto'];
+const PERFORMANCES: Performance[]        = ['abaixo', 'dentro', 'acima'];
+const SATISFACOES: Satisfacao[]          = ['baixo', 'médio', 'alto'];
+const TENDENCIAS: TendenciaPerformance[] = ['melhorando', 'estável', 'piorando'];
+const MODALIDADES: Modalidade[]          = ['presencial', 'híbrido', 'remoto'];
+
+const POP_POS_WEIGHTS  = POSICOES.map(p => (POP_BASE.posicionamentoFaixa as Record<string, number>)[p]);
+const POP_PERF_WEIGHTS = PERFORMANCES.map(p => (POP_BASE.nivelPerformance as Record<string, number>)[p]);
+
+function idxFromMes(mes: string): number {
+  const [y, m] = mes.split('-').map(Number);
+  return y * 12 + (m - 1);
+}
+function mesFromIdx(idx: number): string {
+  const y = Math.floor(idx / 12);
+  const m = (idx % 12) + 1;
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+
+// ── Criação de uma pessoa (atributos estáticos + correlações) ──────────────────
+
+function createPessoa(diretoria: Diretoria, dataAdmissao: string, seq: number, techTalent = false): Pessoa {
   const est = ESTRUTURA[diretoria];
-  const month = ((monthIndex - 1) % 12) + 1;
 
-  // Especialidade (pesos)
   type Esp = { nome: string; superintendente: string; peso: number };
   const esps = est.especialidades as readonly Esp[];
-  const espPesos = esps.map(e => e.peso);
-  const esp = rng.weighted(esps, espPesos);
+  const esp = rng.weighted(esps, esps.map(e => e.peso));
 
-  // ── Distribuições default ───────────────────────────────────────────────────
-  let senDist      = [...est.senDist]                         as number[];
-  let posicaoDist  = [0.05, 0.20, 0.35, 0.25, 0.15]          as number[];
-  let perfDist     = [0.15, 0.55, 0.30]                       as number[];
-  let tipo: TipoDesligamento = rng.next() < 0.72 ? 'voluntário' : 'involuntário';
-  let motivoDist   = [0.20, 0.25, 0.15, 0.20, 0.10, 0.10]    as number[];
-  // motivos:         remun  carrei  cult   perf   pess   outro
+  const senioridade = rng.weighted(SENIORIDADES, [...est.senDist]);
+  // Tecnologia contrata gente forte para bandas subpagas — alimenta a fuga de
+  // talentos de forma sustentada (alto performer chega, é mal pago, sai rápido).
+  const posicaoWeights = techTalent ? [0.15, 0.28, 0.37, 0.13, 0.07] : POP_POS_WEIGHTS;
+  const perfWeights = techTalent ? [0.10, 0.45, 0.45] : POP_PERF_WEIGHTS;
+  const posicionamentoFaixa = rng.weighted(POSICOES, posicaoWeights);
+  const nivelPerformance = rng.weighted(PERFORMANCES, perfWeights);
+  const modalidadeTrabalho = rng.weighted(MODALIDADES, [...est.modalDist]);
+  const cargo = rng.choice(est.cargos);
 
-  // ── Anomalia Tecnologia (Jul/2023 +) ───────────────────────────────────────
-  if (diretoria === 'Tecnologia' && monthIndex >= 7) {
-    senDist     = [0.08, 0.22, 0.38, 0.28, 0.04]; // mais sênior/gerência
-    posicaoDist = [0.22, 0.39, 0.25, 0.10, 0.04]; // concentrado em piso/q1
-    perfDist    = [0.08, 0.19, 0.73];              // 73% alta performance
-    tipo        = 'voluntário';
-    motivoDist  = [0.62, 0.20, 0.08, 0.02, 0.05, 0.03]; // dominado por remuneração
-  }
-
-  // ── Anomalia Distribuição — Janeiro ───────────────────────────────────────
-  if (diretoria === 'Distribuição & Assessoria' && month === 1) {
-    const isInvoluntario = rng.next() < 0.60;
-    tipo       = isInvoluntario ? 'involuntário' : 'voluntário';
-    perfDist   = isInvoluntario ? [0.55, 0.35, 0.10] : [0.05, 0.30, 0.65];
-    motivoDist = isInvoluntario
-      ? [0.05, 0.10, 0.10, 0.65, 0.05, 0.05]  // performance (corte)
-      : [0.15, 0.55, 0.10, 0.05, 0.10, 0.05]; // carreira (migração)
-  }
-
-  // ── Anomalia Operações (Jul/2024 +) ───────────────────────────────────────
-  if (diretoria === 'Operações' && monthIndex >= 19) {
-    tipo       = rng.next() < 0.68 ? 'voluntário' : 'involuntário';
-    perfDist   = [0.20, 0.50, 0.30];
-    motivoDist = [0.20, 0.25, 0.38, 0.08, 0.05, 0.04]; // cultura em alta
-  }
-
-  // ── Atributos sorteados ────────────────────────────────────────────────────
-  const SENIORIDADES: Senioridade[]       = ['júnior', 'pleno', 'sênior', 'gerência', 'diretoria'];
-  const POSICOES: PosicionamentoFaixa[]   = ['piso', 'q1', 'mediana', 'q3', 'teto'];
-  const PERFORMANCES: Performance[]      = ['abaixo', 'dentro', 'acima'];
-  const MOTIVOS: Motivo[]                 = ['remuneração', 'carreira', 'cultura', 'performance', 'pessoal', 'outro'];
-  const SATISFACOES: Satisfacao[]         = ['baixo', 'médio', 'alto'];
-  const TENDENCIAS: TendenciaPerformance[] = ['melhorando', 'estável', 'piorando'];
-  const MODALIDADES: Modalidade[]         = ['presencial', 'híbrido', 'remoto'];
-
-  const senioridade        = rng.weighted(SENIORIDADES, senDist);
-  const posicionamentoFaixa = rng.weighted(POSICOES, posicaoDist);
-  const nivelPerformance   = rng.weighted(PERFORMANCES, perfDist);
-  const motivoDesligamento = rng.weighted(MOTIVOS, motivoDist);
-  const modalidadeTrabalho = rng.weighted(MODALIDADES, est.modalDist);
-  const cargo              = rng.choice(est.cargos);
-
-  // Salário com variação ±3%
-  const salBase  = SALARIOS[senioridade][posicionamentoFaixa][diretoria];
+  const salBase = SALARIOS[senioridade][posicionamentoFaixa][diretoria];
   const salarioBRL = Math.round(salBase * (1 + rng.next() * 0.06 - 0.03) / 100) * 100;
 
-  // Cluster de liderança derivado da senioridade
   const clusterLideranca: ClusterLideranca =
     senioridade === 'diretoria' ? 'líder de líderes' :
     senioridade === 'gerência'  ? 'líder de CI' :
     senioridade === 'sênior' && rng.next() < 0.35 ? 'líder de CI' :
     'contribuidor individual';
 
-  // eSócio: raro, só diretoria/gerência sênior
   const eSocio = (senioridade === 'diretoria' || (senioridade === 'gerência' && rng.next() < 0.12)) && rng.next() < 0.15;
 
-  // Tempos — correlacionados com senioridade
-  const tempoEmpresaMeses      = rng.normal(senioridade === 'sênior' ? 42 : senioridade === 'gerência' ? 60 : 24, 18, 3, 144);
-  const tempoNoCargaMeses      = rng.normal(Math.min(tempoEmpresaMeses, senioridade === 'sênior' ? 24 : 18), 12, 1, tempoEmpresaMeses);
-  const tempoDesdePromocaoBase = diretoria === 'Tecnologia' && monthIndex >= 7 ? 22 : 14;
-  const tempoDesdePromocaoMeses = rng.normal(tempoDesdePromocaoBase, 10, 1, tempoEmpresaMeses);
-  const tempoDesdeAumentoBase  = diretoria === 'Tecnologia' && monthIndex >= 7 ? 19 : 10;
-  const tempoDesdeAumentoMeses = rng.normal(tempoDesdeAumentoBase, 8, 1, tempoEmpresaMeses);
-
-  // Trocas de líder — mais em Operações durante anomalia
-  const trocasBase = diretoria === 'Operações' && monthIndex >= 19 ? 2.2 : 0.8;
-  const trocasDeLiderUltimos12Meses = rng.normal(trocasBase, 0.9, 0, 4);
-
-  // Satisfação — alto performer subpago = muito insatisfeito
+  // Satisfação correlacionada: alto performer subpago = muito insatisfeito
   const isSubpago = posicionamentoFaixa === 'piso' || posicionamentoFaixa === 'q1';
   const satDist =
     nivelPerformance === 'acima' && isSubpago ? [0.68, 0.27, 0.05] :
@@ -396,22 +390,18 @@ function generateDesligamento(
                                                [0.32, 0.44, 0.24];
   const nivelSatisfacao = rng.weighted(SATISFACOES, satDist);
 
-  // NPS interno correlacionado com satisfação
   const npsBase = nivelSatisfacao === 'baixo' ? 3.2 : nivelSatisfacao === 'médio' ? 5.8 : 8.4;
   const npsInterno = Math.max(0, Math.min(10, rng.normal(npsBase, 1.5, 0, 10)));
 
-  // Tendência de performance — insatisfeito tende a performar pior
   const tendDist =
     nivelSatisfacao === 'baixo' ? [0.12, 0.33, 0.55] :
     nivelSatisfacao === 'médio' ? [0.28, 0.48, 0.24] :
                                   [0.40, 0.45, 0.15];
   const tendenciaPerformance = rng.weighted(TENDENCIAS, tendDist);
 
-  const idStr = `D${String(seq).padStart(4, '0')}`;
-
   return {
-    id: idStr,
-    mes,
+    id: `P${String(seq).padStart(4, '0')}`,
+    status: 'ativo',
     diretoria,
     especialidade: esp.nome,
     diretor: est.diretor,
@@ -423,18 +413,156 @@ function generateDesligamento(
     modalidadeTrabalho,
     salarioBRL,
     posicionamentoFaixa,
-    tempoEmpresaMeses,
-    tempoNoCargaMeses,
-    tempoDesdePromocaoMeses,
-    tempoDesdeAumentoMeses,
-    trocasDeLiderUltimos12Meses,
+    dataAdmissao,
+    mesDesligamento: null,
+    // trajetória preenchida no snapshot (saída ou Dez/2024)
+    tempoEmpresaMeses: 0,
+    tempoNoCargaMeses: 0,
+    tempoDesdePromocaoMeses: 0,
+    tempoDesdeAumentoMeses: 0,
+    trocasDeLiderUltimos12Meses: 0,
     nivelPerformance,
     tendenciaPerformance,
     nivelSatisfacao,
     npsInterno,
-    tipoDesligamento: tipo,
-    motivoDesligamento,
+    tipoDesligamento: null,
+    motivoDesligamento: null,
   };
+}
+
+// ── Hazard: peso relativo de saída dado os atributos + anomalias de contexto ───
+
+function hazardScore(p: Pessoa, diretoria: Diretoria, monthIndex: number, month: number): number {
+  let w = 1;
+  const underpaid = p.posicionamentoFaixa === 'piso' || p.posicionamentoFaixa === 'q1';
+
+  // Performance: alta performance foge mais (sobretudo em Tecnologia)
+  if (p.nivelPerformance === 'acima') w *= diretoria === 'Tecnologia' ? 5.5 : 1.6;
+  else if (p.nivelPerformance === 'abaixo') w *= 1.3;
+
+  // Posição na faixa: subpago sai muito mais
+  w *= p.posicionamentoFaixa === 'piso' ? 2.6 : p.posicionamentoFaixa === 'q1' ? 1.8 : p.posicionamentoFaixa === 'mediana' ? 1.0 : p.posicionamentoFaixa === 'q3' ? 0.7 : 0.5;
+
+  // Satisfação
+  w *= p.nivelSatisfacao === 'baixo' ? 2.2 : p.nivelSatisfacao === 'médio' ? 1.0 : 0.5;
+
+  // Anomalias emergentes
+  if (diretoria === 'Tecnologia' && monthIndex >= 7 && p.nivelPerformance === 'acima' && underpaid) w *= 2.2;
+  if (diretoria === 'Operações' && monthIndex >= 19 && p.nivelSatisfacao === 'baixo') w *= 1.8;
+  if (diretoria === 'Distribuição & Assessoria' && month === 1) w *= 1.15;
+
+  return w;
+}
+
+// ── Snapshot de trajetória (tempos correlacionados com atributos) ──────────────
+
+function snapshotTrajectory(p: Pessoa, snapshotMes: string, monthIndex: number): void {
+  const tenure = Math.max(1, idxFromMes(snapshotMes) - idxFromMes(p.dataAdmissao));
+  const underpaid = p.posicionamentoFaixa === 'piso' || p.posicionamentoFaixa === 'q1';
+  p.tempoEmpresaMeses = Math.min(tenure, 360);
+  p.tempoNoCargaMeses = rng.normal(Math.min(tenure, p.senioridade === 'sênior' ? 24 : p.senioridade === 'gerência' ? 30 : 18), 12, 1, tenure);
+  p.tempoDesdeAumentoMeses = rng.normal(underpaid ? 18 : 10, 8, 1, tenure);
+  p.tempoDesdePromocaoMeses = rng.normal(underpaid ? 20 : 14, 10, 1, tenure);
+  const trocasBase = p.diretoria === 'Operações' && monthIndex >= 19 ? 2.2 : 0.8;
+  p.trocasDeLiderUltimos12Meses = rng.normal(trocasBase, 0.9, 0, 4);
+}
+
+// ── Atribuição de tipo/motivo da saída ─────────────────────────────────────────
+
+function assignDeparture(p: Pessoa, diretoria: Diretoria, monthIndex: number, month: number): void {
+  const underpaid = p.posicionamentoFaixa === 'piso' || p.posicionamentoFaixa === 'q1';
+  const highperf = p.nivelPerformance === 'acima';
+  const lowperf = p.nivelPerformance === 'abaixo';
+  const lowsat = p.nivelSatisfacao === 'baixo';
+
+  // Distribuição em Janeiro: cortes (involuntário, perf baixa) + migração (voluntário, carreira)
+  if (diretoria === 'Distribuição & Assessoria' && month === 1) {
+    const involuntario = lowperf ? rng.next() < 0.85 : rng.next() < 0.55;
+    p.tipoDesligamento = involuntario ? 'involuntário' : 'voluntário';
+    p.motivoDesligamento = involuntario ? 'performance' : (rng.next() < 0.7 ? 'carreira' : 'remuneração');
+    return;
+  }
+
+  // Operações na escalada (Jul/2024+): cultura em alta
+  if (diretoria === 'Operações' && monthIndex >= 19) {
+    p.tipoDesligamento = lowperf ? (rng.next() < 0.6 ? 'involuntário' : 'voluntário') : (rng.next() < 0.8 ? 'voluntário' : 'involuntário');
+    p.motivoDesligamento = lowsat ? 'cultura' : underpaid ? 'remuneração' : (rng.next() < 0.5 ? 'cultura' : 'carreira');
+    return;
+  }
+
+  if (lowperf) {
+    p.tipoDesligamento = rng.next() < 0.6 ? 'involuntário' : 'voluntário';
+    p.motivoDesligamento = p.tipoDesligamento === 'involuntário' ? 'performance' : (rng.next() < 0.5 ? 'carreira' : 'pessoal');
+    return;
+  }
+
+  p.tipoDesligamento = rng.next() < 0.85 ? 'voluntário' : 'involuntário';
+  p.motivoDesligamento =
+    underpaid && highperf ? 'remuneração' :
+    lowsat                ? (rng.next() < 0.5 ? 'cultura' : 'carreira') :
+    underpaid             ? (rng.next() < 0.6 ? 'remuneração' : 'carreira') :
+    highperf              ? (rng.next() < 0.5 ? 'carreira' : 'remuneração') :
+                            (rng.next() < 0.4 ? 'carreira' : rng.next() < 0.7 ? 'pessoal' : 'outro');
+}
+
+// ── Amostragem ponderada sem reposição ─────────────────────────────────────────
+
+function weightedSampleN(pool: Pessoa[], weightFn: (p: Pessoa) => number, n: number): Pessoa[] {
+  if (n >= pool.length) return [...pool];
+  const candidates = pool.map(p => ({ p, w: Math.max(1e-6, weightFn(p)) }));
+  const picked: Pessoa[] = [];
+  for (let k = 0; k < n; k++) {
+    const total = candidates.reduce((s, c) => s + c.w, 0);
+    let r = rng.next() * total;
+    let idx = 0;
+    for (let i = 0; i < candidates.length; i++) { r -= candidates[i].w; if (r <= 0) { idx = i; break; } }
+    picked.push(candidates[idx].p);
+    candidates.splice(idx, 1);
+  }
+  return picked;
+}
+
+// ── Derivação dos arquivos legados a partir do roster ──────────────────────────
+
+const DESLIG_FIELDS = (p: Pessoa): Desligamento => ({
+  id: p.id,
+  mes: p.mesDesligamento!,
+  diretoria: p.diretoria,
+  especialidade: p.especialidade,
+  diretor: p.diretor,
+  superintendente: p.superintendente,
+  cargo: p.cargo,
+  senioridade: p.senioridade,
+  clusterLideranca: p.clusterLideranca,
+  eSocio: p.eSocio,
+  modalidadeTrabalho: p.modalidadeTrabalho,
+  salarioBRL: p.salarioBRL,
+  posicionamentoFaixa: p.posicionamentoFaixa,
+  tempoEmpresaMeses: p.tempoEmpresaMeses,
+  tempoNoCargaMeses: p.tempoNoCargaMeses,
+  tempoDesdePromocaoMeses: p.tempoDesdePromocaoMeses,
+  tempoDesdeAumentoMeses: p.tempoDesdeAumentoMeses,
+  trocasDeLiderUltimos12Meses: p.trocasDeLiderUltimos12Meses,
+  nivelPerformance: p.nivelPerformance,
+  tendenciaPerformance: p.tendenciaPerformance,
+  nivelSatisfacao: p.nivelSatisfacao,
+  npsInterno: p.npsInterno,
+  tipoDesligamento: p.tipoDesligamento!,
+  motivoDesligamento: p.motivoDesligamento!,
+});
+
+const DIM_POP = ['senioridade', 'posicionamentoFaixa', 'nivelPerformance', 'clusterLideranca', 'nivelSatisfacao', 'modalidadeTrabalho'] as const;
+
+function distFromPeople(people: Pessoa[], dim: keyof Pessoa): Record<string, number> {
+  const counts = new Map<string, number>();
+  for (const p of people) {
+    const key = String(p[dim]);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const total = people.length || 1;
+  const out: Record<string, number> = {};
+  for (const [k, v] of counts) out[k] = parseFloat((v / total).toFixed(4));
+  return out;
 }
 
 // ── Simulação principal ───────────────────────────────────────────────────────
@@ -446,167 +574,140 @@ function main() {
     for (let m = 1; m <= 12; m++)
       meses.push(`${y}-${String(m).padStart(2, '0')}`);
 
-  const desligamentos: Desligamento[] = [];
   const headcountData: HeadcountMensal[] = [];
-
-  // Headcount corrente por diretoria
-  const hcAtual = Object.fromEntries(
-    diretorias.map(d => [d, ESTRUTURA[d].headcountInicial])
-  ) as Record<Diretoria, number>;
-
+  const roster: Pessoa[] = [];
   let seq = 1;
 
-  for (let mi = 0; mi < meses.length; mi++) {
-    const mes = meses[mi];
-    const monthIndex = mi + 1; // 1-based
-
-    for (const dir of diretorias) {
-      const hcInicio = hcAtual[dir];
-      const noise = rng.next(); // sorteio de ruído para a taxa (determinístico)
-      const taxa = baseTurnoverRate(dir, monthIndex, noise);
-      const numSaidas = Math.max(0, Math.round(hcInicio * taxa));
-
-      // Admissões: repõe as saídas + crescimento orgânico leve
-      const crescimento = dir === 'Tecnologia' ? 0.007 : 0.004;
-      const numEntradas = numSaidas + Math.max(0, Math.round(hcInicio * crescimento + rng.next() * 2 - 1));
-
-      // Gerar registros de desligamento
-      for (let i = 0; i < numSaidas; i++) {
-        desligamentos.push(generateDesligamento(dir, mes, monthIndex, seq++));
-      }
-
-      const hcFim = hcInicio + numEntradas - numSaidas;
-      headcountData.push({ mes, diretoria: dir, headcountInicio: hcInicio, admissoes: numEntradas, desligamentos: numSaidas, headcountFim: hcFim });
-      hcAtual[dir] = hcFim;
+  // ── Roster inicial (Jan/2023) com tenure pré-existente ──────────────────────
+  for (const dir of diretorias) {
+    for (let i = 0; i < ESTRUTURA[dir].headcountInicial; i++) {
+      // tenure inicial sorteada por senioridade implícita: 6–60 meses antes de Jan/2023
+      const tenure0 = rng.int(6, 60);
+      const admissao = mesFromIdx(idxFromMes('2023-01') - tenure0);
+      roster.push(createPessoa(dir, admissao, seq++));
     }
   }
 
-  // ── Composição da população ativa por diretoria + Geral ──────────────────────
-  const SENIORIDADES_POP: Senioridade[] = ['júnior', 'pleno', 'sênior', 'gerência', 'diretoria'];
-  const MODALIDADES_POP: Modalidade[]   = ['presencial', 'híbrido', 'remoto'];
+  // ── Loop mensal ─────────────────────────────────────────────────────────────
+  for (let mi = 0; mi < meses.length; mi++) {
+    const mes = meses[mi];
+    const monthIndex = mi + 1;
+    const month = ((monthIndex - 1) % 12) + 1;
+
+    for (const dir of diretorias) {
+      const activeDir = roster.filter(p => p.diretoria === dir && p.status === 'ativo');
+      const hcInicio = activeDir.length;
+      const noise = rng.next();
+      const taxa = baseTurnoverRate(dir, monthIndex, noise);
+      const numSaidas = Math.max(0, Math.round(hcInicio * taxa));
+
+      const leavers = weightedSampleN(activeDir, p => hazardScore(p, dir, monthIndex, month), numSaidas);
+      for (const p of leavers) {
+        snapshotTrajectory(p, mes, monthIndex);
+        assignDeparture(p, dir, monthIndex, month);
+        p.status = 'desligado';
+        p.mesDesligamento = mes;
+      }
+
+      const crescimento = dir === 'Tecnologia' ? 0.007 : 0.004;
+      const numEntradas = numSaidas + Math.max(0, Math.round(hcInicio * crescimento + rng.next() * 2 - 1));
+      const techTalent = dir === 'Tecnologia' && monthIndex >= 6; // fuga sustentada a partir do 2S/2023
+      for (let i = 0; i < numEntradas; i++) roster.push(createPessoa(dir, mes, seq++, techTalent));
+
+      const hcFim = hcInicio - numSaidas + numEntradas;
+      headcountData.push({ mes, diretoria: dir, headcountInicio: hcInicio, admissoes: numEntradas, desligamentos: numSaidas, headcountFim: hcFim });
+    }
+  }
+
+  // ── Snapshot final dos ativos (Dez/2024) ────────────────────────────────────
+  for (const p of roster) {
+    if (p.status === 'ativo') snapshotTrajectory(p, '2024-12', 24);
+  }
+
+  // ── Derivações ──────────────────────────────────────────────────────────────
+  const desligamentos: Desligamento[] = roster
+    .filter(p => p.status === 'desligado')
+    .sort((a, b) => (a.mesDesligamento! < b.mesDesligamento! ? -1 : a.mesDesligamento! > b.mesDesligamento! ? 1 : a.id < b.id ? -1 : 1))
+    .map(DESLIG_FIELDS);
 
   function avgHeadcount(dir: Diretoria): number {
     const rows = headcountData.filter(h => h.diretoria === dir);
     return rows.reduce((s, h) => s + h.headcountInicio, 0) / rows.length;
   }
 
+  const ativos = roster.filter(p => p.status === 'ativo');
   const populacao: PopulacaoDiretoria[] = diretorias.map(dir => {
-    const est = ESTRUTURA[dir];
-    const senioridade = Object.fromEntries(SENIORIDADES_POP.map((s, i) => [s, est.senDist[i]]));
-    const modalidadeTrabalho = Object.fromEntries(MODALIDADES_POP.map((m, i) => [m, est.modalDist[i]]));
-    const espTotal = est.especialidades.reduce((s, e) => s + e.peso, 0);
-    const especialidade = Object.fromEntries(est.especialidades.map(e => [e.nome, e.peso / espTotal]));
-    return {
-      diretoria: dir,
-      headcountMedio: Math.round(avgHeadcount(dir)),
-      distribuicoes: {
-        senioridade,
-        posicionamentoFaixa: { ...POP_BASE.posicionamentoFaixa },
-        nivelPerformance:    { ...POP_BASE.nivelPerformance },
-        clusterLideranca:    { ...POP_BASE.clusterLideranca },
-        nivelSatisfacao:     { ...POP_BASE.nivelSatisfacao },
-        modalidadeTrabalho,
-        especialidade,
-      },
-    };
+    const peopleDir = ativos.filter(p => p.diretoria === dir);
+    const distribuicoes: Record<string, Record<string, number>> = {};
+    for (const dim of DIM_POP) distribuicoes[dim] = distFromPeople(peopleDir, dim);
+    distribuicoes['especialidade'] = distFromPeople(peopleDir, 'especialidade');
+    return { diretoria: dir, headcountMedio: Math.round(avgHeadcount(dir)), distribuicoes };
   });
-
-  // Geral = média das distribuições ponderada pelo headcount médio de cada diretoria
-  const hcTotalGeral = populacao.reduce((s, p) => s + p.headcountMedio, 0);
+  // Geral: marginal de toda a população ativa
   const geralDist: Record<string, Record<string, number>> = {};
-  for (const dim of ['senioridade', 'posicionamentoFaixa', 'nivelPerformance', 'clusterLideranca', 'nivelSatisfacao', 'modalidadeTrabalho']) {
-    const acc: Record<string, number> = {};
-    for (const p of populacao) {
-      for (const [valor, share] of Object.entries(p.distribuicoes[dim])) {
-        acc[valor] = (acc[valor] ?? 0) + share * p.headcountMedio;
-      }
-    }
-    for (const k of Object.keys(acc)) acc[k] = parseFloat((acc[k] / hcTotalGeral).toFixed(4));
-    geralDist[dim] = acc;
-  }
-  populacao.unshift({ diretoria: 'Geral', headcountMedio: Math.round(hcTotalGeral), distribuicoes: geralDist });
+  for (const dim of DIM_POP) geralDist[dim] = distFromPeople(ativos, dim);
+  populacao.unshift({ diretoria: 'Geral', headcountMedio: ativos.length, distribuicoes: geralDist });
 
   // ── Gravar outputs ──────────────────────────────────────────────────────────
   const dataDir = path.join(process.cwd(), 'lib', 'data');
   fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, 'pessoas.json'), JSON.stringify(roster));
   fs.writeFileSync(path.join(dataDir, 'desligamentos.json'), JSON.stringify(desligamentos));
   fs.writeFileSync(path.join(dataDir, 'headcount.json'), JSON.stringify(headcountData));
   fs.writeFileSync(path.join(dataDir, 'populacao.json'), JSON.stringify(populacao));
 
-  // ── Validação de sanidade ──────────────────────────────────────────────────
-  console.log('\n══ Validação do Dataset — Verta S.A. ══════════════════════════════');
-  console.log(`Total de registros de desligamento: ${desligamentos.length}\n`);
+  // ── Validação ───────────────────────────────────────────────────────────────
+  console.log('\n══ Validação do Roster — Verta S.A. ═══════════════════════════════');
+  console.log(`Pessoas no roster: ${roster.length} | Ativas: ${ativos.length} | Desligadas: ${desligamentos.length}\n`);
 
   const stats: Record<string, unknown>[] = [];
   let allConsistent = true;
-
   for (const dir of diretorias) {
     const hcDir = headcountData.filter(h => h.diretoria === dir);
     const desDir = desligamentos.filter(d => d.diretoria === dir);
-
-    // Consistência: headcountFim[t] === headcountInicio[t+1]
     let consistent = true;
-    for (let i = 0; i < hcDir.length - 1; i++) {
+    for (let i = 0; i < hcDir.length - 1; i++)
       if (hcDir[i].headcountFim !== hcDir[i + 1].headcountInicio) { consistent = false; allConsistent = false; break; }
-    }
-
-    // Taxa média de turnover
     const totalHC = hcDir.reduce((s, h) => s + h.headcountInicio, 0);
     const taxaMedia = (desDir.length / totalHC * 100).toFixed(2);
-
-    // Anomalias esperadas
-    const s1_2023 = desDir.filter(d => d.mes >= '2023-01' && d.mes <= '2023-06').length;
-    const s2_2023 = desDir.filter(d => d.mes >= '2023-07' && d.mes <= '2023-12').length;
-    const hcS1    = hcDir.filter(h => h.mes >= '2023-01' && h.mes <= '2023-06').reduce((s, h) => s + h.headcountInicio, 0);
-    const hcS2    = hcDir.filter(h => h.mes >= '2023-07' && h.mes <= '2023-12').reduce((s, h) => s + h.headcountInicio, 0);
-    const taxaS1  = hcS1  ? (s1_2023 / hcS1  * 100).toFixed(2) : 'n/a';
-    const taxaS2  = hcS2  ? (s2_2023 / hcS2  * 100).toFixed(2) : 'n/a';
-
-    console.log(`${dir}`);
-    console.log(`  Desligamentos: ${desDir.length} | Taxa média: ${taxaMedia}%/mês | HC final: ${hcDir[hcDir.length - 1].headcountFim}`);
-    console.log(`  2023-S1: ${s1_2023} saídas (${taxaS1}%) | 2023-S2: ${s2_2023} saídas (${taxaS2}%)`);
-    console.log(`  Consistência de headcount: ${consistent ? '✓' : '✗ FALHA'}\n`);
-
+    console.log(`${dir}: ${desDir.length} saídas | ${taxaMedia}%/mês | HC final ${hcDir[hcDir.length - 1].headcountFim} | consistência ${consistent ? '✓' : '✗'}`);
     stats.push({ diretoria: dir, totalDesligamentos: desDir.length, taxaMediaMensal: parseFloat(taxaMedia), headcountFinal: hcDir[hcDir.length - 1].headcountFim, consistente: consistent });
   }
 
-  // Validação das anomalias principais
-  console.log('── Validação de anomalias ───────────────────────────────────────────');
+  console.log('\n── Anomalias emergentes ─────────────────────────────────────────────');
   const techS2 = desligamentos.filter(d => d.diretoria === 'Tecnologia' && d.mes >= '2023-07' && d.mes <= '2023-12');
-  const techS2AltaPerf = techS2.filter(d => d.nivelPerformance === 'acima');
-  const techS2SubPago  = techS2.filter(d => d.posicionamentoFaixa === 'piso' || d.posicionamentoFaixa === 'q1');
-  console.log(`Tech 2023-S2: ${techS2.length} saídas`);
-  console.log(`  Alta performance: ${techS2AltaPerf.length} (${(techS2AltaPerf.length / techS2.length * 100).toFixed(0)}%) — esperado ~73%`);
-  console.log(`  Piso/Q1 da faixa: ${techS2SubPago.length} (${(techS2SubPago.length / techS2.length * 100).toFixed(0)}%) — esperado ~61%`);
-
+  const techAcima = techS2.filter(d => d.nivelPerformance === 'acima').length;
+  const techSub = techS2.filter(d => d.posicionamentoFaixa === 'piso' || d.posicionamentoFaixa === 'q1').length;
+  console.log(`Tech 2023-S2: ${techS2.length} saídas | alta perf ${(techAcima / techS2.length * 100).toFixed(0)}% | piso/q1 ${(techSub / techS2.length * 100).toFixed(0)}%`);
+  const techVol = desligamentos.filter(d => d.diretoria === 'Tecnologia' && d.tipoDesligamento === 'voluntário').length;
+  const techTot = desligamentos.filter(d => d.diretoria === 'Tecnologia').length;
+  console.log(`Tech voluntário: ${(techVol / techTot * 100).toFixed(0)}% das saídas`);
   const distJan = desligamentos.filter(d => d.diretoria === 'Distribuição & Assessoria' && (d.mes === '2023-01' || d.mes === '2024-01'));
-  const distJanInvoluntario = distJan.filter(d => d.tipoDesligamento === 'involuntário');
-  console.log(`\nDistribuição Janeiro (2023+2024): ${distJan.length} saídas | Involuntários: ${distJanInvoluntario.length} (${(distJanInvoluntario.length / distJan.length * 100).toFixed(0)}%) — esperado ~60%`);
+  const distJanInv = distJan.filter(d => d.tipoDesligamento === 'involuntário').length;
+  console.log(`Distribuição Janeiro: ${distJan.length} saídas | involuntário ${distJan.length ? (distJanInv / distJan.length * 100).toFixed(0) : '0'}%`);
+  const opsS2_23 = desligamentos.filter(d => d.diretoria === 'Operações' && d.mes >= '2023-07' && d.mes <= '2023-12').length;
+  const opsS2_24 = desligamentos.filter(d => d.diretoria === 'Operações' && d.mes >= '2024-07' && d.mes <= '2024-12').length;
+  console.log(`Operações 2023-S2: ${opsS2_23} → 2024-S2: ${opsS2_24} (esperado crescimento)`);
 
-  const opsH2_2024 = desligamentos.filter(d => d.diretoria === 'Operações' && d.mes >= '2024-07' && d.mes <= '2024-12');
-  const opsH2_2023 = desligamentos.filter(d => d.diretoria === 'Operações' && d.mes >= '2023-07' && d.mes <= '2023-12');
-  console.log(`\nOperações 2023-S2: ${opsH2_2023.length} saídas | 2024-S2: ${opsH2_2024.length} saídas — esperado crescimento`);
-
+  const popTech = populacao.find(p => p.diretoria === 'Tecnologia')!;
+  const techAll = desligamentos.filter(d => d.diretoria === 'Tecnologia');
+  const compAcima = techAll.filter(d => d.nivelPerformance === 'acima').length / techAll.length;
+  const lift = compAcima / (popTech.distribuicoes.nivelPerformance['acima'] || 1);
+  console.log(`Lift alta perf (Tech, 24m): ${lift.toFixed(1)}× (composição ${(compAcima * 100).toFixed(0)}% vs população ${((popTech.distribuicoes.nivelPerformance['acima'] || 0) * 100).toFixed(0)}%)`);
   console.log(`\nConsistência geral de headcount: ${allConsistent ? '✓ PASSOU' : '✗ FALHOU'}`);
 
-  // Meta JSON
   fs.writeFileSync(path.join(dataDir, 'meta.json'), JSON.stringify({
     empresa: 'Verta S.A.',
     geradoEm: new Date().toISOString(),
     seed: 42,
     janela: { inicio: '2023-01', fim: '2024-12', meses: 24 },
+    totalPessoas: roster.length,
+    totalAtivos: ativos.length,
     totalDesligamentos: desligamentos.length,
     diretorias: stats,
   }, null, 2));
 
-  // ── Validação da população (lift sanity-check) ──────────────────────────────
-  console.log('\n── Validação de população / lift ────────────────────────────────────');
-  const popTech = populacao.find(p => p.diretoria === 'Tecnologia')!;
-  const techS2Acima = techS2.filter(d => d.nivelPerformance === 'acima').length / techS2.length;
-  const liftAcima = techS2Acima / popTech.distribuicoes.nivelPerformance['acima'];
-  console.log(`Tech 2023-S2 — alta performance: ${(techS2Acima * 100).toFixed(0)}% das saídas vs ${(popTech.distribuicoes.nivelPerformance['acima'] * 100).toFixed(0)}% da população → lift ${liftAcima.toFixed(1)}× (esperado > 2×)`);
-
-  console.log('\n✓ Arquivos gerados: lib/data/desligamentos.json, headcount.json, populacao.json, meta.json');
+  console.log('\n✓ Arquivos: pessoas.json, desligamentos.json, headcount.json, populacao.json, meta.json');
 }
 
 main();

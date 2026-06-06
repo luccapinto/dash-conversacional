@@ -17,7 +17,6 @@ import {
   getHeadcount,
   getSegmentRates,
   getDrivers,
-  crossBreakdown,
   compareGroups,
   getCohortByTenure,
   quantifyCost,
@@ -25,6 +24,7 @@ import {
   META_TURNOVER_MENSAL,
   MIN_AMOSTRA,
 } from '@/lib/calculations';
+import { crossBreakdown } from '@/lib/calculations/roster';
 
 // ── getTurnoverRate ───────────────────────────────────────────────────────────
 
@@ -185,18 +185,24 @@ describe('rankDiretoriasByTurnover', () => {
 // ── breakdownByDimension ──────────────────────────────────────────────────────
 
 describe('breakdownByDimension', () => {
-  it('Tecnologia/posicionamentoFaixa: piso+q1 concentram >50% das saídas no 2S/2024', () => {
+  it('Tecnologia/posicionamentoFaixa: piso+q1 dominam as saídas no 2S/2024 (subpagamento)', () => {
     const r = breakdownByDimension('6m', 'Tecnologia', 'posicionamentoFaixa');
     const pisoQ1 = r.itens.filter(i => i.label === 'piso' || i.label === 'q1');
     const pct = pisoQ1.reduce((s, i) => s + i.percentual, 0);
-    expect(pct).toBeGreaterThan(50);
+    // piso+q1 são minoria da população mas a maior fatia das saídas
+    expect(pct).toBeGreaterThan(45);
+    const teto = r.itens.find(i => i.label === 'teto');
+    expect(pct).toBeGreaterThan(teto?.percentual ?? 0);
   });
 
-  it('Tecnologia/nivelPerformance: "acima" concentra a maioria das saídas no 2S/2024', () => {
+  it('Tecnologia/nivelPerformance: "acima" é a maior fatia das saídas no 2S/2024 (fuga de talento)', () => {
     const r = breakdownByDimension('6m', 'Tecnologia', 'nivelPerformance');
     const acima = r.itens.find(i => i.label === 'acima');
     expect(acima).toBeDefined();
-    expect(acima!.percentual).toBeGreaterThan(50);
+    // alta performance lidera as saídas, muito acima da sua fatia na população
+    const maxPct = Math.max(...r.itens.map(i => i.percentual));
+    expect(acima!.percentual).toBe(maxPct);
+    expect(acima!.percentual).toBeGreaterThan(45);
   });
 
   it('Distribuição/tipoDesligamento em Janeiro: ~50-60% involuntário', () => {
@@ -382,5 +388,24 @@ describe('getRegrettedAttrition', () => {
     expect(r.percentualRegretido).toBeGreaterThan(0);
     expect(r.custoRegretido).toBeGreaterThan(0);
     expect(r.motivoPrincipal).toBe('remuneração');
+  });
+});
+
+// ── Roster individual + junção real (estratégia B) ────────────────────────────
+
+describe('crossBreakdown — taxa/lift reais por junção (roster)', () => {
+  it('alta performance × banda subpaga em Tecnologia sai muito acima do esperado', () => {
+    const r = crossBreakdown('12m', 'Tecnologia', 'nivelPerformance', 'posicionamentoFaixa');
+    const cell = r.celulas.find(c => c.valor1 === 'acima' && (c.valor2 === 'piso' || c.valor2 === 'q1'));
+    expect(cell).toBeDefined();
+    expect(cell!.lift).not.toBeNull();
+    // a interação é mais letal que os fatores isolados → lift alto
+    expect(cell!.lift!).toBeGreaterThan(3);
+    expect(cell!.taxaCelula!).toBeGreaterThan(0);
+  });
+
+  it('dimensão exclusiva de quem saiu (motivo) não produz taxa de junção', () => {
+    const r = crossBreakdown('12m', 'Tecnologia', 'motivoDesligamento', 'senioridade');
+    expect(r.celulas.every(c => c.lift == null)).toBe(true);
   });
 });

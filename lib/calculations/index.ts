@@ -37,8 +37,6 @@ import type {
   ItemSegmentRate,
   ResultadoDrivers,
   DriverItem,
-  ResultadoCrossBreakdown,
-  CelulaCross,
   ResultadoComparacao,
   GrupoComparado,
   ResultadoCohort,
@@ -46,6 +44,10 @@ import type {
   ResultadoCusto,
   ResultadoRegretido,
 } from '@/lib/types';
+
+// NOTA: pessoas.json (~1MB) NÃO é importado aqui de propósito. Este módulo é
+// puxado pelo dashboard (client component), então o roster individual vive em
+// lib/calculations/roster.ts, consumido só pela rota de chat (server-side).
 
 const DESLIGAMENTOS = desligamentosRaw as RegistroDesligamento[];
 const HEADCOUNT = headcountRaw as HeadcountMensal[];
@@ -87,7 +89,7 @@ function generateRange(from: string, to: string): string[] {
 }
 
 /** Resolve um Periodo nas três janelas de comparação */
-function resolvePeriodo(periodo: Periodo): {
+export function resolvePeriodo(periodo: Periodo): {
   mesesAtual: string[];
   mesesAnterior: string[];
   mesesAnoAnterior: string[] | null;
@@ -169,7 +171,7 @@ function resolvePeriodo(periodo: Periodo): {
 }
 
 /** Filtra desligamentos pelos critérios dados */
-function filterDesligamentos(
+export function filterDesligamentos(
   meses: string[],
   diretoria?: Diretoria,
   tipo?: TipoDesligamento,
@@ -183,7 +185,7 @@ function filterDesligamentos(
 }
 
 /** Soma de headcountInicio para uma janela de meses e diretoria */
-function sumHeadcount(meses: string[], diretoria?: Diretoria): number {
+export function sumHeadcount(meses: string[], diretoria?: Diretoria): number {
   return HEADCOUNT
     .filter(h => {
       if (!meses.includes(h.mes)) return false;
@@ -200,7 +202,7 @@ function sumHeadcount(meses: string[], diretoria?: Diretoria): number {
  * médio simples), o que pondera corretamente períodos com headcount crescente.
  * O resultado é a fração do workforce que saiu em cada mês, em média.
  */
-function calcTaxa(desligamentos: number, hcTotal: number): number {
+export function calcTaxa(desligamentos: number, hcTotal: number): number {
   return hcTotal > 0 ? desligamentos / hcTotal : 0;
 }
 
@@ -741,50 +743,6 @@ export function getDrivers(
     : null;
 
   return { diretoria, periodo: label, totalDesligamentos: total, taxaGeral, fatoresDeRisco, fatoresProtetivos, aviso };
-}
-
-/**
- * Cruzamento de duas dimensões — encontra o segmento de interseção mais crítico.
- * Ex: senioridade × posicionamentoFaixa = "júnior no piso da faixa".
- *
- * @param periodo    - Período de análise
- * @param diretoria  - Diretoria ou 'Geral'
- * @param dimensao1  - Primeira dimensão de corte
- * @param dimensao2  - Segunda dimensão de corte
- * @param tipoDesligamento - Pré-filtrar por tipo de saída
- */
-export function crossBreakdown(
-  periodo: Periodo,
-  diretoria: Diretoria = 'Geral',
-  dimensao1: DimensaoBreakdown,
-  dimensao2: DimensaoBreakdown,
-  tipoDesligamento?: TipoDesligamento,
-): ResultadoCrossBreakdown {
-  const { mesesAtual, label } = resolvePeriodo(periodo);
-  const desl = filterDesligamentos(mesesAtual, diretoria, tipoDesligamento);
-  const total = desl.length;
-
-  const buckets = new Map<string, { v1: string; v2: string; n: number }>();
-  for (const d of desl) {
-    const v1 = String(d[dimensao1 as keyof RegistroDesligamento]);
-    const v2 = String(d[dimensao2 as keyof RegistroDesligamento]);
-    const key = `${v1}||${v2}`;
-    const cur = buckets.get(key) ?? { v1, v2, n: 0 };
-    cur.n++;
-    buckets.set(key, cur);
-  }
-
-  const celulas: CelulaCross[] = [...buckets.values()]
-    .map(c => ({ valor1: c.v1, valor2: c.v2, desligamentos: c.n, percentual: total > 0 ? parseFloat((c.n / total * 100).toFixed(1)) : 0 }))
-    .sort((a, b) => b.desligamentos - a.desligamentos)
-    .slice(0, 12);
-
-  const top = celulas[0];
-  const destaque = top && top.desligamentos >= MIN_AMOSTRA
-    ? `${top.valor1} × ${top.valor2} concentra ${top.percentual}% das saídas (${top.desligamentos} pessoas).`
-    : null;
-
-  return { dimensao1, dimensao2, diretoria, periodo: label, totalDesligamentos: total, celulas, destaque };
 }
 
 /** Métricas-resumo de um recorte, usado por compareGroups */
