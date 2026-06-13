@@ -62,16 +62,17 @@ function DeltaCell({ delta }: { delta: number | null }) {
   );
 }
 
-/** Mostra o YTD de referência (mês anterior) como valor, com seta de direção
- *  vs. o YTD atual: ▲ = turnover acelerou (pior), ▼ = desacelerou (melhor). */
-function YtdRefCell({ atual, valorRef }: { atual: number; valorRef: number | null }) {
-  if (valorRef === null) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>;
-  const diff = atual - valorRef;
-  const arrow = Math.abs(diff) < 0.0005 ? '' : diff > 0 ? ' ▲' : ' ▼';
-  const color = Math.abs(diff) < 0.0005 ? 'var(--color-text-muted)' : diff > 0 ? 'var(--color-bad)' : 'var(--color-good)';
+/** M-1: quantos p.p. o YTD subiu desde o mês anterior (= contribuição do último
+ *  mês). Colorido vs. a meta mensal: subir mais que a meta = pior (vermelho). */
+function YtdGrowthCell({ delta }: { delta: number | null }) {
+  if (delta === null) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>;
+  const color = Math.abs(delta) < 0.0005
+    ? 'var(--color-text-muted)'
+    : delta > META ? 'var(--color-bad)' : 'var(--color-good)';
+  const sign = delta >= 0 ? '+' : '';
   return (
-    <span className="tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
-      {pctStr(valorRef)}<span style={{ color, fontSize: 9 }}>{arrow}</span>
+    <span className="tabular-nums font-medium" style={{ color }}>
+      {sign}{(delta * 100).toFixed(1)}pp
     </span>
   );
 }
@@ -119,7 +120,7 @@ function RankingTable({ data, narrativeTitle }: { data: ResultadoRanking; narrat
             <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
               <th className={TH} style={{ ...TH_SZ, ...groupBorderL }}>Real YTD</th>
               <th className={TH} style={TH_SZ}>Meta</th>
-              <th className={TH} style={TH_SZ} title="YTD acumulado até o mês anterior">YTD M-1</th>
+              <th className={TH} style={TH_SZ} title="Quantos p.p. o YTD subiu desde o mês anterior (contribuição do último mês)">M-1</th>
               <th className={TH} style={TH_SZ} title="Variação vs. o mesmo YTD do ano anterior">YoY</th>
               <th className={TH} style={{ ...TH_SZ, ...groupBorderL }}>TO Vol</th>
               <th className={TH} style={TH_SZ}>TO Invol</th>
@@ -145,7 +146,7 @@ function RankingTable({ data, narrativeTitle }: { data: ResultadoRanking; narrat
                 {pctStr(metaYTD)}
               </td>
               <td className="py-2 px-2 text-right">
-                <YtdRefCell atual={total.ytdTotal} valorRef={total.ytdAnterior} />
+                <YtdGrowthCell delta={total.ytdAnterior !== null ? total.ytdTotal - total.ytdAnterior : null} />
               </td>
               <td className="py-2 px-2 text-right">
                 {total.ytdAnoAnterior !== null
@@ -192,7 +193,7 @@ function RankingTable({ data, narrativeTitle }: { data: ResultadoRanking; narrat
                     {pctStr(metaYTD)}
                   </td>
                   <td className="py-2 px-2 text-right">
-                    <YtdRefCell atual={acum} valorRef={item.ytdAnterior} />
+                    <YtdGrowthCell delta={item.ytdAnterior !== null ? acum - item.ytdAnterior : null} />
                   </td>
                   <td className="py-2 px-2 text-right">
                     <DeltaCell delta={yoyDelta} />
