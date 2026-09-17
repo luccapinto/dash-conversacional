@@ -115,7 +115,7 @@ export function DashboardShell() {
           </main>
 
           {/* Sidebar chat — desktop only */}
-          <aside className="hidden lg:block lg:w-72 lg:shrink-0">
+          <aside className="hidden lg:block lg:w-96 lg:shrink-0">
             <div className="sticky top-[68px] h-[calc(100vh-92px)]">
               <ChatPanel />
             </div>

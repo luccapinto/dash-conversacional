@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import type { ResultadoRanking, ResultadoBreakdown, Periodo } from '@/lib/types';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
-import { META_TURNOVER_MENSAL, getMesesPeriodo } from '@/lib/calculations';
+import { META_TURNOVER_MENSAL } from '@/lib/calculations';
 
 interface RankingChartGeral {
   mode: 'ranking';
@@ -62,40 +62,28 @@ function DeltaCell({ delta }: { delta: number | null }) {
   );
 }
 
+/** M-1: quantos p.p. o YTD subiu desde o mês anterior (= contribuição do último
+ *  mês). Colorido vs. a meta mensal: subir mais que a meta = pior (vermelho). */
+function YtdGrowthCell({ delta }: { delta: number | null }) {
+  if (delta === null) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>;
+  const color = Math.abs(delta) < 0.0005
+    ? 'var(--color-text-muted)'
+    : delta > META ? 'var(--color-bad)' : 'var(--color-good)';
+  const sign = delta >= 0 ? '+' : '';
+  return (
+    <span className="tabular-nums font-medium" style={{ color }}>
+      {sign}{(delta * 100).toFixed(1)}pp
+    </span>
+  );
+}
+
 // ── Ranking table (mode=ranking) ──────────────────────────────────────────────
 
 const TH = "py-1.5 px-2 text-right font-semibold uppercase tracking-wide";
 const TH_SZ = { fontSize: 10, color: 'var(--color-text-muted)' };
 
-function RankingTable({ data, narrativeTitle, periodo: periodoProp }: { data: ResultadoRanking; narrativeTitle?: string; periodo?: Periodo }) {
-  const { ranking, periodo } = data;
-
-  const nMeses = periodoProp ? getMesesPeriodo(periodoProp).length : 12;
-  const metaPeriodo = META * nMeses;
-  const metaFY = META * 12;
-
-  const totalHC   = ranking.reduce((s, r) => s + r.headcountMedio, 0);
-  const totalDesl = ranking.reduce((s, r) => s + r.desligamentos, 0);
-  const totalTaxa = totalHC > 0 ? totalDesl / totalHC : 0;
-  const totalStatus = calcStatus(totalTaxa, metaPeriodo);
-
-  // Weighted vol/invol totals
-  const totalDeslVol   = ranking.reduce((s, r) => s + r.ytdVoluntario   * r.headcountMedio, 0);
-  const totalDeslInvol = ranking.reduce((s, r) => s + r.ytdInvoluntario * r.headcountMedio, 0);
-  const totalYtdVol    = totalHC > 0 ? totalDeslVol   / totalHC : 0;
-  const totalYtdInvol  = totalHC > 0 ? totalDeslInvol / totalHC : 0;
-
-  // Weighted previous-period and YoY totals
-  const antRows    = ranking.filter(r => r.ytdAnterior    !== null);
-  const aaRows     = ranking.filter(r => r.ytdAnoAnterior !== null);
-  const totalHcAnt = antRows.reduce((s, r) => s + r.headcountMedio, 0);
-  const totalHcAA  = aaRows.reduce( (s, r) => s + r.headcountMedio, 0);
-  const totalYtdAnt = totalHcAnt > 0
-    ? antRows.reduce((s, r) => s + r.ytdAnterior!    * r.headcountMedio, 0) / totalHcAnt
-    : null;
-  const totalYtdAA  = totalHcAA  > 0
-    ? aaRows.reduce( (s, r) => s + r.ytdAnoAnterior! * r.headcountMedio, 0) / totalHcAA
-    : null;
+function RankingTable({ data, narrativeTitle }: { data: ResultadoRanking; narrativeTitle?: string; periodo?: Periodo }) {
+  const { ranking, periodo, metaYTD, metaFY, total } = data;
 
   const groupBorderL = { borderLeft: '1px solid var(--color-border)' };
 
@@ -132,8 +120,8 @@ function RankingTable({ data, narrativeTitle, periodo: periodoProp }: { data: Re
             <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
               <th className={TH} style={{ ...TH_SZ, ...groupBorderL }}>Real YTD</th>
               <th className={TH} style={TH_SZ}>Meta</th>
-              <th className={TH} style={TH_SZ}>M-1</th>
-              <th className={TH} style={TH_SZ}>YoY</th>
+              <th className={TH} style={TH_SZ} title="Quantos p.p. o YTD subiu desde o mês anterior (contribuição do último mês)">M-1</th>
+              <th className={TH} style={TH_SZ} title="Variação vs. o mesmo YTD do ano anterior">YoY</th>
               <th className={TH} style={{ ...TH_SZ, ...groupBorderL }}>TO Vol</th>
               <th className={TH} style={TH_SZ}>TO Invol</th>
               <th className={TH} style={TH_SZ}>TO Geral</th>
@@ -146,35 +134,33 @@ function RankingTable({ data, narrativeTitle, periodo: periodoProp }: { data: Re
                 Verta S.A.
               </td>
               <td className="py-2 px-2 text-right font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
-                {totalHC.toLocaleString('pt-BR')}
+                {total.headcountMedio.toLocaleString('pt-BR')}
               </td>
               <td className="py-2 px-2 text-right font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
-                {totalDesl}
+                {total.desligamentos}
               </td>
-              <td className="py-2 px-2 text-right font-bold tabular-nums" style={{ color: statusColor(totalStatus), ...groupBorderL }}>
-                {pctStr(totalTaxa)}
+              <td className="py-2 px-2 text-right font-bold tabular-nums" style={{ color: statusColor(total.status), ...groupBorderL }}>
+                {pctStr(total.ytdTotal)}
               </td>
               <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-muted)' }}>
-                {pctStr(metaPeriodo)}
+                {pctStr(metaYTD)}
               </td>
               <td className="py-2 px-2 text-right">
-                {totalYtdAnt !== null
-                  ? <DeltaCell delta={totalTaxa - totalYtdAnt} />
-                  : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
+                <YtdGrowthCell delta={total.ytdAnterior !== null ? total.ytdTotal - total.ytdAnterior : null} />
               </td>
               <td className="py-2 px-2 text-right">
-                {totalYtdAA !== null
-                  ? <DeltaCell delta={totalTaxa - totalYtdAA} />
+                {total.ytdAnoAnterior !== null
+                  ? <DeltaCell delta={total.ytdTotal - total.ytdAnoAnterior} />
                   : <span style={{ color: 'var(--color-text-muted)' }}>—</span>}
               </td>
               <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-secondary)', ...groupBorderL }}>
-                {pctStr(totalYtdVol)}
+                {pctStr(total.ytdVoluntario)}
               </td>
               <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
-                {pctStr(totalYtdInvol)}
+                {pctStr(total.ytdInvoluntario)}
               </td>
-              <td className="py-2 px-2 text-right font-bold tabular-nums" style={{ color: statusColor(totalStatus) }}>
-                {pctStr(totalTaxa)}
+              <td className="py-2 px-2 text-right font-bold tabular-nums" style={{ color: statusColor(total.status) }}>
+                {pctStr(total.ytdTotal)}
               </td>
               <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-muted)', ...groupBorderL }}>
                 {pctStr(metaFY)}
@@ -184,8 +170,7 @@ function RankingTable({ data, narrativeTitle, periodo: periodoProp }: { data: Re
             {/* Per-diretoria rows */}
             {ranking.map((item, i) => {
               const acum  = item.ytdTotal;
-              const st    = calcStatus(acum, metaPeriodo);
-              const m1Delta  = item.ytdAnterior    !== null ? acum - item.ytdAnterior    : null;
+              const st    = item.status;
               const yoyDelta = item.ytdAnoAnterior !== null ? acum - item.ytdAnoAnterior : null;
               return (
                 <tr
@@ -205,10 +190,10 @@ function RankingTable({ data, narrativeTitle, periodo: periodoProp }: { data: Re
                     {pctStr(acum)}
                   </td>
                   <td className="py-2 px-2 text-right tabular-nums" style={{ color: 'var(--color-text-muted)' }}>
-                    {pctStr(metaPeriodo)}
+                    {pctStr(metaYTD)}
                   </td>
                   <td className="py-2 px-2 text-right">
-                    <DeltaCell delta={m1Delta} />
+                    <YtdGrowthCell delta={item.ytdAnterior !== null ? acum - item.ytdAnterior : null} />
                   </td>
                   <td className="py-2 px-2 text-right">
                     <DeltaCell delta={yoyDelta} />

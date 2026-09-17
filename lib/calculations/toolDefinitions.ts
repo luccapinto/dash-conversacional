@@ -230,6 +230,152 @@ export const TOOL_DEFINITIONS = [
   {
     type: 'function' as const,
     function: {
+      name: 'getSegmentRates',
+      description:
+        'Retorna a taxa REAL de turnover por valor de uma dimensão, com o LIFT vs. a população ativa. ' +
+        'Diferença vs. breakdownByDimension: esta usa a composição de quem FICOU como denominador, ' +
+        'então responde "júniors saem 2× mais" (taxa real), não só "60% das saídas eram júnior" (composição). ' +
+        'lift = composição_saídas ÷ composição_população (1.0 = neutro, 2.0 = sai o dobro do esperado). ' +
+        'Use sempre que a pergunta for sobre QUAL PERFIL sai mais/proporcionalmente. ' +
+        'Dimensões com taxa/lift: senioridade, posicionamentoFaixa, nivelPerformance, clusterLideranca, nivelSatisfacao, modalidadeTrabalho, especialidade.',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodo: { type: 'string', enum: ['3m', '6m', '12m', 'q1', 'q2', 'q3', 'q4'], description: 'Período de análise.' },
+          diretoria: { type: 'string', enum: ['Geral', 'Tecnologia', 'Distribuição & Assessoria', 'Operações', 'Financeiro & Risco', 'Gente', 'Produtos & Plataforma'], description: 'Diretoria ou "Geral".' },
+          dimensao: {
+            type: 'string',
+            enum: ['posicionamentoFaixa', 'nivelPerformance', 'senioridade', 'clusterLideranca', 'nivelSatisfacao', 'modalidadeTrabalho', 'especialidade'],
+            description: 'Dimensão com população base, para taxa real + lift.',
+          },
+          tipoDesligamento: { type: 'string', enum: ['voluntário', 'involuntário'], description: 'Pré-filtrar por tipo de saída.' },
+        },
+        required: ['periodo', 'dimensao'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getDrivers',
+      description:
+        'A MELHOR ferramenta para "por que o turnover está alto?" ou "o que está puxando as saídas?". ' +
+        'Varre TODAS as dimensões e ranqueia os segmentos por lift, separando FATORES DE RISCO ' +
+        '(perfis que saem muito acima do esperado) de FATORES PROTETIVOS (que retêm bem). ' +
+        'Entrega um diagnóstico multivariado de uma vez, em vez de uma fatia por vez. ' +
+        'Prefira esta a chamar breakdownByDimension várias vezes.',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodo: { type: 'string', enum: ['3m', '6m', '12m', 'q1', 'q2', 'q3', 'q4'], description: 'Período de análise.' },
+          diretoria: { type: 'string', enum: ['Geral', 'Tecnologia', 'Distribuição & Assessoria', 'Operações', 'Financeiro & Risco', 'Gente', 'Produtos & Plataforma'], description: 'Diretoria ou "Geral".' },
+          tipoDesligamento: { type: 'string', enum: ['voluntário', 'involuntário'], description: 'Pré-filtrar por tipo de saída.' },
+        },
+        required: ['periodo'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'crossBreakdown',
+      description:
+        'Cruza DUAS dimensões para achar o segmento de interseção mais crítico. ' +
+        'Ex: senioridade × posicionamentoFaixa = "sênior no piso da faixa". ' +
+        'Use quando a pergunta combina dois cortes ou para localizar o bolso de risco específico.',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodo: { type: 'string', enum: ['3m', '6m', '12m', 'q1', 'q2', 'q3', 'q4'], description: 'Período de análise.' },
+          diretoria: { type: 'string', enum: ['Geral', 'Tecnologia', 'Distribuição & Assessoria', 'Operações', 'Financeiro & Risco', 'Gente', 'Produtos & Plataforma'], description: 'Diretoria ou "Geral".' },
+          dimensao1: { type: 'string', enum: ['posicionamentoFaixa', 'nivelPerformance', 'senioridade', 'clusterLideranca', 'tipoDesligamento', 'motivoDesligamento', 'modalidadeTrabalho', 'tendenciaPerformance', 'nivelSatisfacao', 'especialidade', 'cargo'], description: 'Primeira dimensão.' },
+          dimensao2: { type: 'string', enum: ['posicionamentoFaixa', 'nivelPerformance', 'senioridade', 'clusterLideranca', 'tipoDesligamento', 'motivoDesligamento', 'modalidadeTrabalho', 'tendenciaPerformance', 'nivelSatisfacao', 'especialidade', 'cargo'], description: 'Segunda dimensão.' },
+          tipoDesligamento: { type: 'string', enum: ['voluntário', 'involuntário'], description: 'Pré-filtrar por tipo de saída.' },
+        },
+        required: ['periodo', 'dimensao1', 'dimensao2'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'compareGroups',
+      description:
+        'Compara DOIS recortes lado a lado: duas diretorias no mesmo período, ou a mesma diretoria em dois períodos. ' +
+        'Responde "como X se compara com Y?" ou "Tecnologia vs Operações". ' +
+        'Retorna taxa, % voluntário e % alta performance de cada lado.',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodoA: { type: 'string', enum: ['3m', '6m', '12m', 'q1', 'q2', 'q3', 'q4'], description: 'Período do grupo A.' },
+          diretoriaA: { type: 'string', enum: ['Geral', 'Tecnologia', 'Distribuição & Assessoria', 'Operações', 'Financeiro & Risco', 'Gente', 'Produtos & Plataforma'], description: 'Diretoria do grupo A.' },
+          periodoB: { type: 'string', enum: ['3m', '6m', '12m', 'q1', 'q2', 'q3', 'q4'], description: 'Período do grupo B.' },
+          diretoriaB: { type: 'string', enum: ['Geral', 'Tecnologia', 'Distribuição & Assessoria', 'Operações', 'Financeiro & Risco', 'Gente', 'Produtos & Plataforma'], description: 'Diretoria do grupo B.' },
+          tipoDesligamento: { type: 'string', enum: ['voluntário', 'involuntário'], description: 'Filtro de tipo aplicado aos dois lados.' },
+        },
+        required: ['periodoA', 'diretoriaA', 'periodoB', 'diretoriaB'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getCohortByTenure',
+      description:
+        'Distribui as saídas por tempo de casa (0–12, 13–24, 25–48, 49+ meses) e revela EARLY ATTRITION ' +
+        '(saída precoce). Responde "estamos perdendo gente nova?" ou "em quanto tempo as pessoas saem?". ' +
+        'Cada faixa traz % voluntário e salário médio.',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodo: { type: 'string', enum: ['3m', '6m', '12m', 'q1', 'q2', 'q3', 'q4'], description: 'Período de análise.' },
+          diretoria: { type: 'string', enum: ['Geral', 'Tecnologia', 'Distribuição & Assessoria', 'Operações', 'Financeiro & Risco', 'Gente', 'Produtos & Plataforma'], description: 'Diretoria ou "Geral".' },
+          tipoDesligamento: { type: 'string', enum: ['voluntário', 'involuntário'], description: 'Pré-filtrar por tipo de saída.' },
+        },
+        required: ['periodo'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'quantifyCost',
+      description:
+        'Quantifica o CUSTO financeiro do turnover (folha mensal perdida + custo de reposição estimado em ~6 meses de salário). ' +
+        'Use sempre que a pergunta envolver "quanto custa", "impacto financeiro", "R$". ' +
+        'Inclui o custo só das saídas regretidas (voluntárias de alta performance).',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodo: { type: 'string', enum: ['3m', '6m', '12m', 'q1', 'q2', 'q3', 'q4'], description: 'Período de análise.' },
+          diretoria: { type: 'string', enum: ['Geral', 'Tecnologia', 'Distribuição & Assessoria', 'Operações', 'Financeiro & Risco', 'Gente', 'Produtos & Plataforma'], description: 'Diretoria ou "Geral".' },
+          tipoDesligamento: { type: 'string', enum: ['voluntário', 'involuntário'], description: 'Pré-filtrar por tipo de saída.' },
+        },
+        required: ['periodo'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'getRegrettedAttrition',
+      description:
+        'Mede a REGRETTED ATTRITION: saídas VOLUNTÁRIAS de quem tinha performance "acima" — a perda cara, ' +
+        'talento bom que pediu para sair. Use para "estamos perdendo os melhores?" ou "qual a perda de talento?". ' +
+        'Traz %, custo, salário médio, NPS interno e o motivo dominante.',
+      parameters: {
+        type: 'object',
+        properties: {
+          periodo: { type: 'string', enum: ['3m', '6m', '12m', 'q1', 'q2', 'q3', 'q4'], description: 'Período de análise.' },
+          diretoria: { type: 'string', enum: ['Geral', 'Tecnologia', 'Distribuição & Assessoria', 'Operações', 'Financeiro & Risco', 'Gente', 'Produtos & Plataforma'], description: 'Diretoria ou "Geral".' },
+        },
+        required: ['periodo'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'getHeadcount',
       description:
         'Retorna o headcount (número de funcionários) de um período com evolução mensal. ' +

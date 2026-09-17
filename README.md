@@ -20,7 +20,7 @@ E que vai além: um chat em linguagem natural onde o usuário pergunta e a IA re
 - **Framework:** Next.js 16 (App Router) + TypeScript
 - **Estilo:** Tailwind CSS v4 com design tokens executivos customizados
 - **Gráficos:** Recharts
-- **IA:** OpenRouter (Gemini Flash) via serverless function — function calling
+- **IA:** OpenRouter (modelo de raciocínio, default Claude 3.5 Sonnet) via serverless function — function calling com streaming real
 - **Deploy:** Vercel (deploy automático a cada push)
 - **Dados:** JSON estático gerado por script offline (sem banco de dados)
 
@@ -45,7 +45,7 @@ Acesse `http://localhost:3000`.
 | Variável | Obrigatória | Descrição |
 |---|---|---|
 | `OPENROUTER_API_KEY` | Sim (chat) | Chave do OpenRouter — server-side only |
-| `OPENROUTER_MODEL` | Não | Modelo padrão: `google/gemini-flash-1.5` |
+| `OPENROUTER_MODEL` | Não | Modelo padrão: `anthropic/claude-3.5-sonnet` (use um modelo de raciocínio) |
 | `NEXT_PUBLIC_APP_URL` | Não | URL pública do app (HTTP-Referer) |
 
 **Segurança:** a API key nunca aparece no código nem é enviada ao client bundle. Vive exclusivamente em variável de ambiente server-side.
