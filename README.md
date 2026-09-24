@@ -4,6 +4,12 @@
 
 Demo pública de dashboard executivo de turnover potencializado por IA (insights proativos + chat conversacional com function calling real). Projeto de posicionamento profissional — não um SaaS.
 
+## Demo
+
+https://github.com/user-attachments/assets/d8491d4a-a08c-4e73-add3-d1eb41f0577c
+
+Gravado contra o build de produção, com o chat chamando o modelo de verdade — as esperas aparecem comprimidas com selo na tela. Para regravar: `npm run build && npm run start -- --port 3220` e depois `npm run demo-video` (sai em `docs/demo/demo.mp4`, fora do versionamento).
+
 ## O que é
 
 Um dashboard que responde as **4 perguntas executivas** sobre turnover:
