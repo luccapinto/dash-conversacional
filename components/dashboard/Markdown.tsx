@@ -121,8 +121,12 @@ export function Markdown({ text }: { text: string }) {
       continue;
     }
 
-    // Parágrafo (agrupa linhas consecutivas)
-    const para: string[] = [];
+    // Parágrafo (agrupa linhas consecutivas). A primeira linha é sempre
+    // consumida: enquanto a resposta ainda está streamando, o cabeçalho de uma
+    // tabela chega antes da linha separadora e nenhum outro bloco o aceita —
+    // sem este consumo incondicional o `while` externo nunca avança.
+    const para: string[] = [lines[i]];
+    i++;
     while (i < lines.length && lines[i].trim() && !lines[i].includes('|') && !/^\s*[-*]\s+/.test(lines[i]) && !/^\s*\d+\.\s+/.test(lines[i])) {
       para.push(lines[i]); i++;
     }
