@@ -50,4 +50,10 @@ describe('Markdown', () => {
   it('não perde texto solto que contém pipe', () => {
     expect(renderToText('Turnover | meta: 2,0% ao mês')).toContain('meta');
   });
+
+  it('renderiza título markdown sem deixar os # na tela', () => {
+    const out = renderToText('## **Tecnologia** lidera\n\nTexto.');
+    expect(out).toContain('Tecnologia lidera');
+    expect(out).not.toContain('#');
+  });
 });

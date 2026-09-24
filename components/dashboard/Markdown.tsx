@@ -89,6 +89,23 @@ export function Markdown({ text }: { text: string }) {
     // Linha em branco
     if (!line.trim()) { i++; continue; }
 
+    // Título (#, ##, ###) — o modelo abre a resposta com um deles
+    const heading = /^(#{1,3})\s+(.*)$/.exec(line);
+    if (heading) {
+      const level = heading[1].length;
+      blocks.push(
+        <p
+          key={key++}
+          className={level === 1 ? 'mt-1 mb-1.5 text-[0.95rem] font-semibold leading-snug' : 'mt-2 mb-1 text-sm font-semibold leading-snug'}
+          style={{ color: 'var(--color-text-primary)' }}
+        >
+          {renderInline(heading[2].replace(/:$/, ''), `h${key}`)}
+        </p>
+      );
+      i++;
+      continue;
+    }
+
     // Tabela: linha com | seguida de separadora
     if (line.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
       const rows: string[] = [];
