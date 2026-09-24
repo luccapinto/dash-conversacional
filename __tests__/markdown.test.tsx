@@ -51,9 +51,10 @@ describe('Markdown', () => {
     expect(renderToText('Turnover | meta: 2,0% ao mês')).toContain('meta');
   });
 
-  it('renderiza título markdown sem deixar os # na tela', () => {
-    const out = renderToText('## **Tecnologia** lidera\n\nTexto.');
+  it('renderiza títulos markdown sem deixar os # na tela', () => {
+    const out = renderToText('## **Tecnologia** lidera\n\nTexto.\n\n#### Fuga de talento\n\nMais texto.');
     expect(out).toContain('Tecnologia lidera');
+    expect(out).toContain('Fuga de talento');
     expect(out).not.toContain('#');
   });
 });

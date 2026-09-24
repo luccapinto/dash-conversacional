@@ -89,8 +89,9 @@ export function Markdown({ text }: { text: string }) {
     // Linha em branco
     if (!line.trim()) { i++; continue; }
 
-    // Título (#, ##, ###) — o modelo abre a resposta com um deles
-    const heading = /^(#{1,3})\s+(.*)$/.exec(line);
+    // Título (# a ######) — o modelo abre a resposta com um deles e usa
+    // níveis profundos para subtítulos dentro da análise.
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
     if (heading) {
       const level = heading[1].length;
       blocks.push(
