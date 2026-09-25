@@ -89,6 +89,24 @@ export function Markdown({ text }: { text: string }) {
     // Linha em branco
     if (!line.trim()) { i++; continue; }
 
+    // Título (# a ######) — o modelo abre a resposta com um deles e usa
+    // níveis profundos para subtítulos dentro da análise.
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) {
+      const level = heading[1].length;
+      blocks.push(
+        <p
+          key={key++}
+          className={level === 1 ? 'mt-1 mb-1.5 text-[0.95rem] font-semibold leading-snug' : 'mt-2 mb-1 text-sm font-semibold leading-snug'}
+          style={{ color: 'var(--color-text-primary)' }}
+        >
+          {renderInline(heading[2].replace(/:$/, ''), `h${key}`)}
+        </p>
+      );
+      i++;
+      continue;
+    }
+
     // Tabela: linha com | seguida de separadora
     if (line.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
       const rows: string[] = [];
@@ -121,8 +139,12 @@ export function Markdown({ text }: { text: string }) {
       continue;
     }
 
-    // Parágrafo (agrupa linhas consecutivas)
-    const para: string[] = [];
+    // Parágrafo (agrupa linhas consecutivas). A primeira linha é sempre
+    // consumida: enquanto a resposta ainda está streamando, o cabeçalho de uma
+    // tabela chega antes da linha separadora e nenhum outro bloco o aceita —
+    // sem este consumo incondicional o `while` externo nunca avança.
+    const para: string[] = [lines[i]];
+    i++;
     while (i < lines.length && lines[i].trim() && !lines[i].includes('|') && !/^\s*[-*]\s+/.test(lines[i]) && !/^\s*\d+\.\s+/.test(lines[i])) {
       para.push(lines[i]); i++;
     }
