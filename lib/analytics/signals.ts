@@ -1,8 +1,9 @@
 /**
  * Detector de sinais: base da camada adaptativa (adendo v3). Para um recorte (período,
  * diretoria opcional, lente de público) calcula, de forma determinística, o que merece
- * destaque. Cada sinal traz tipo, indicador(es), recorte, score em [0, 1], evidência textual
- * curta sem adjetivos e os pontos de dados exatos que a sustentam.
+ * destaque. Cada sinal traz tipo, indicador(es), recorte, score em [0, 1), evidência textual
+ * curta sem adjetivos e os pontos de dados exatos que a sustentam. O score cresce com o tamanho
+ * do desvio sem saturar (1 − e^(−x/escala)), para que desvios grandes continuem ordenados entre si.
  *
  * Roda sobre qualquer MotorCliente (o cubo basta), então pode rodar no client ou no build.
  *
@@ -13,20 +14,24 @@
  *  - quebra_de_tendencia: ponto de mudança de média na série mensal (eNPS: por ciclo) nos
  *    últimos 24 meses, com t ≥ limiar e deslocamento ≥ 20%. Só para fluxos: estoques mudam
  *    devagar e a autocorrelação infla o t.
- *  - piora_acelerada: trimestres móveis piorando, a última piora ≥ 1,5× a anterior.
- *  - sazonalidade: pico no mesmo mês do calendário em todos os anos disponíveis (≥ 5 eventos
- *    em cada pico); quando há sazonalidade, o pico não é lido como quebra nem como piora.
+ *  - piora_acelerada: trimestres móveis piorando, a última piora ≥ 1,5× a anterior; em taxas de
+ *    evento, a diferença de eventos entre os trimestres comparados precisa ter z ≥ 2 (teste
+ *    binomial condicional), para que poucos eventos em grupos pequenos não virem sinal.
+ *  - sazonalidade: pico no mesmo mês do calendário em 3 anos seguidos (≥ 5 eventos em cada
+ *    pico); quando há sazonalidade, o pico não é lido como quebra nem como piora.
  *  - indicador_antecedente: pares declarados em PARES_ANTECEDENTES, só quando o efeito está
- *    fora da meta ou piorou ≥ 10% sobre os 12 meses anteriores:
+ *    fora da meta ou piorou ≥ 10% sobre os 12 meses anteriores. Cada par tenta seus métodos em
+ *    ordem e vale o primeiro com evidência:
  *      · variações: correlação entre as variações mensais da causa em t e do efeito em t+L,
  *        mais forte que sem defasagem;
  *      · mudança de patamar: a causa muda de patamar e o efeito muda 1 a 6 meses depois, no
  *        sentido esperado (degraus, como eNPS → turnover, não se medem bem por correlação).
  */
 
-import { CATALOGO, INDICADORES, type Dominio, type IdIndicador, type Indicador, type Unidade } from './catalog';
+import { CATALOGO, INDICADORES, type Dominio, type IdIndicador, type Indicador, type Termo, type Unidade } from './catalog';
 import { DIRETORIAS, MESES, mesDoAno, mesIdx, rotuloMes, somarMeses, type Diretoria, type Mes } from './dominio';
 import { leituraDe, type MotorCliente, type Periodo, type PontoSerie, type ResultadoValor } from './engine';
+import type { Medidas } from './fatos';
 
 export const TIPOS_SINAL = [
   'fora_da_meta',
@@ -100,28 +105,35 @@ export const LIMIARES = {
   quebraJanelaMeses: 24,
   piora: 0.15,
   pioraAceleracao: 1.5,
+  pioraZ: 2,
   sazonalRazao: 1.8,
   sazonalRazaoAnterior: 1.5,
   sazonalEventos: 5,
+  sazonalAnos: 3,
   antecedenteR: 0.6,
   antecedenteGanho: 0.2,
   antecedenteDefasagemMaxMeses: 6,
   antecedentePiora: 0.1,
 } as const;
 
+type MetodoAntecedente = 'variacoes' | 'mudanca_de_patamar';
+
 interface ParAntecedente {
   causa: IdIndicador;
   efeito: IdIndicador;
   /** +1: causa e efeito andam juntos; −1: em sentidos opostos */
   sentido: 1 | -1;
-  metodo: 'variacoes' | 'mudanca_de_patamar';
+  /** variações pegam o movimento de curto prazo; patamar pega o acúmulo (vagas que se empilham) */
+  metodos: readonly MetodoAntecedente[];
 }
 
 export const PARES_ANTECEDENTES: readonly ParAntecedente[] = [
-  { causa: 'enps', efeito: 'turnover_voluntario', sentido: -1, metodo: 'mudanca_de_patamar' },
-  { causa: 'vagas_abertas', efeito: 'horas_extras_pc', sentido: 1, metodo: 'variacoes' },
-  { causa: 'horas_extras_pc', efeito: 'absenteismo', sentido: 1, metodo: 'variacoes' },
+  { causa: 'enps', efeito: 'turnover_voluntario', sentido: -1, metodos: ['mudanca_de_patamar'] },
+  { causa: 'vagas_abertas', efeito: 'horas_extras_pc', sentido: 1, metodos: ['variacoes', 'mudanca_de_patamar'] },
+  { causa: 'horas_extras_pc', efeito: 'absenteismo', sentido: 1, metodos: ['variacoes', 'mudanca_de_patamar'] },
 ];
+
+type NovoSinal = Omit<Sinal, 'id' | 'score' | 'periodo'> & { periodo?: Periodo };
 
 // ── Estatística pura (exportada para teste) ───────────────────────────────────
 
@@ -187,6 +199,7 @@ export function pioraAcelerada(q: readonly [number, number, number, number], fat
 // ── Formatação (pt-BR, sem adjetivos) ─────────────────────────────────────────
 
 const UMA_CASA = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const DUAS_CASAS = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const INTEIRO = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 
 export function formatar(valor: number, unidade: Unidade | 'p.p.'): string {
@@ -227,11 +240,33 @@ function distancia(ind: Indicador, x: number, ref: number): number {
   return ref !== 0 ? Math.abs(x - ref) / Math.abs(ref) : 0;
 }
 
+function somarTermo(termo: Termo, medidas: Partial<Medidas>): number {
+  return termo.reduce((s, [coef, m]) => s + coef * (medidas[m] ?? 0), 0);
+}
+
 /** Eventos (numerador) de um ponto mensal de série */
 function eventosDoPonto(ind: Indicador, p: PontoSerie): number {
   const c = ind.calculo;
-  const termo = c.tipo === 'razao' ? c.numerador : c.tipo === 'total' ? c.termo : [];
-  return termo.reduce((s, [coef, m]) => s + coef * (p.medidas[m] ?? 0), 0);
+  return c.tipo === 'razao' ? somarTermo(c.numerador, p.medidas) : c.tipo === 'total' ? somarTermo(c.termo, p.medidas) : 0;
+}
+
+/**
+ * z do teste binomial condicional entre duas taxas de evento: dado o total de eventos, quantos
+ * caem no segundo recorte além do esperado pela exposição. Positivo = o segundo tem mais eventos.
+ */
+function zEventos(ind: Indicador, de: ResultadoValor, para: ResultadoValor): number | null {
+  const c = ind.calculo;
+  if (!ind.evento || c.tipo !== 'razao') return null;
+  const [a, b] = [somarTermo(c.numerador, de.rastreio.medidas), somarTermo(c.numerador, para.rastreio.medidas)];
+  const [ea, eb] = [somarTermo(c.denominador, de.rastreio.medidas), somarTermo(c.denominador, para.rastreio.medidas)];
+  const p = eb / (ea + eb);
+  const n = a + b;
+  return n > 0 && p > 0 && p < 1 ? (b - n * p) / Math.sqrt(n * p * (1 - p)) : 0;
+}
+
+/** Tamanho de um desvio em [0, 1): cresce sempre com x, sem empatar desvios grandes em 1 */
+function intensidade(x: number, escala: number): number {
+  return 1 - Math.exp(-x / escala);
 }
 
 function mediana(v: number[]): number {
@@ -252,7 +287,7 @@ export function detectarSinais(motor: MotorCliente, recorte: RecorteSinais): Sin
     ({ indicador: ind.id, diretoria: d, periodo: p.periodo, rotulo: p.rotulo, valor: p.valor, n: p.n });
 
   const sinais: Sinal[] = [];
-  const emitir = (s: Omit<Sinal, 'id' | 'score' | 'periodo'> & { periodo?: Periodo }) => {
+  const emitir = (s: NovoSinal) => {
     const peso = PESO_LENTE[lente][CATALOGO[s.indicadores[s.indicadores.length - 1]].dominio];
     sinais.push({
       ...s,
@@ -262,19 +297,15 @@ export function detectarSinais(motor: MotorCliente, recorte: RecorteSinais): Sin
     });
   };
 
-  /** Efeito relevante: fora da meta, ou piorou sobre os 12 meses anteriores. Devolve a relevância em [0, 1]. */
-  function relevanciaDoEfeito(ind: Indicador, d: Diretoria | null): number {
+  /** O efeito importa agora: fora da meta, ou piorou ≥ 10% sobre os 12 meses anteriores */
+  function efeitoRelevante(ind: Indicador, d: Diretoria | null): boolean {
     const agora = motor.valor({ indicador: ind.id, periodo, filtros: filtrosDe(d) });
-    if (agora.valor === null) return 0;
-    const foraRel = agora.status === 'fora' && ind.meta ? distancia(ind, agora.valor, ind.meta.valor) : 0;
-    let pioraRel = 0;
+    if (agora.valor === null) return false;
+    if (agora.status === 'fora') return true;
     const inicioAntes = somarMeses(periodo.inicio, -12);
-    if (inicioAntes >= MESES[0]) {
-      const antes = motor.valor({ indicador: ind.id, periodo: { inicio: inicioAntes, fim: somarMeses(periodo.fim, -12) }, filtros: filtrosDe(d) });
-      if (antes.valor !== null && piora(ind, antes.valor, agora.valor) > 0) pioraRel = distancia(ind, agora.valor, antes.valor);
-    }
-    if (foraRel === 0 && pioraRel < LIMIARES.antecedentePiora) return 0;
-    return Math.min(1, Math.max(foraRel, pioraRel) / 0.3);
+    if (inicioAntes < MESES[0]) return false;
+    const antes = motor.valor({ indicador: ind.id, periodo: { inicio: inicioAntes, fim: somarMeses(periodo.fim, -12) }, filtros: filtrosDe(d) });
+    return antes.valor !== null && piora(ind, antes.valor, agora.valor) > 0 && distancia(ind, agora.valor, antes.valor) >= LIMIARES.antecedentePiora;
   }
 
   function foraDaMeta(ind: Indicador): void {
@@ -284,7 +315,7 @@ export function detectarSinais(motor: MotorCliente, recorte: RecorteSinais): Sin
     if (r.status !== 'fora' || !r.amostraSuficiente || r.valor === null) return;
     emitir({
       tipo: 'fora_da_meta', indicadores: [ind.id], diretoria: d, direcao: 'desfavoravel',
-      scoreBase: Math.min(1, distancia(ind, r.valor, ind.meta.valor) / 0.5),
+      scoreBase: intensidade(distancia(ind, r.valor, ind.meta.valor), 0.5),
       evidencia: `${ind.nome}${onde(d)}, ${rotuloPeriodo(periodo)}: ${formatar(r.valor, ind.unidade)}; meta ${formatar(ind.meta.valor, ind.unidade)}; diferença ${diferenca(r.valor - ind.meta.valor, ind.unidade)}.`,
       pontos: [doValor(r, d, periodo)],
     });
@@ -304,7 +335,7 @@ export function detectarSinais(motor: MotorCliente, recorte: RecorteSinais): Sin
       emitir({
         tipo: 'outlier_entre_diretorias', indicadores: [ind.id], diretoria: d,
         direcao: piora(ind, ref, r.valor!) > 0 ? 'desfavoravel' : 'favoravel',
-        scoreBase: Math.min(1, dist / 0.75),
+        scoreBase: intensidade(dist, 0.75),
         evidencia: `${ind.nome}, ${rotuloPeriodo(periodo)}: ${d} ${formatar(r.valor!, ind.unidade)}; mediana das demais diretorias ${formatar(ref, ind.unidade)}; diferença ${diferenca(r.valor! - ref, ind.unidade)}.`,
         pontos: [
           doValor(r, d, periodo, d),
@@ -320,7 +351,7 @@ export function detectarSinais(motor: MotorCliente, recorte: RecorteSinais): Sin
     const y = validos.map(p => p.valor!);
     const mensal = serie.granularidade === 'mes';
 
-    // sazonalidade: pico no mesmo mês do calendário em todos os anos disponíveis
+    // sazonalidade: o pico mais recente dentro do período que se repete no mesmo mês do calendário nos anos anteriores
     let sazonal = false;
     if (mensal) {
       const razao = (i: number): number | null => {
@@ -333,16 +364,16 @@ export function detectarSinais(motor: MotorCliente, recorte: RecorteSinais): Sin
         if (med === 0 || y[i] === 0) return null;
         return ind.polaridade === 'menor_melhor' ? y[i] / med : med / y[i];
       };
-      for (let i = Math.max(0, validos.length - 3); i < validos.length && !sazonal; i++) {
+      for (let i = validos.length - 1; i >= 0 && validos[i].periodo.inicio >= periodo.inicio && !sazonal; i--) {
         const atual = razao(i);
         if (atual === null || atual < LIMIARES.sazonalRazao) continue;
         const mesmoMes = validos.map((p, j) => ({ p, j })).filter(({ p, j }) => j < i && mesDoAno(p.periodo.inicio) === mesDoAno(validos[i].periodo.inicio));
-        if (mesmoMes.length === 0 || !mesmoMes.every(({ j }) => (razao(j) ?? 0) >= LIMIARES.sazonalRazaoAnterior)) continue;
+        if (mesmoMes.length < LIMIARES.sazonalAnos - 1 || !mesmoMes.every(({ j }) => (razao(j) ?? 0) >= LIMIARES.sazonalRazaoAnterior)) continue;
         sazonal = true;
         const picos = [...mesmoMes.map(x => x.p), validos[i]];
         emitir({
           tipo: 'sazonalidade', indicadores: [ind.id], diretoria: d, direcao: 'desfavoravel', periodo: validos[i].periodo,
-          scoreBase: Math.min(1, (atual - 1) / 2),
+          scoreBase: intensidade(atual - 1, 2),
           evidencia: `${ind.nome}${onde(d)}: ${picos.map(p => `${p.rotulo} ${formatar(p.valor!, ind.unidade)}`).join('; ')}; em ${validos[i].rotulo}, ${UMA_CASA.format(atual)}× a mediana dos 12 meses anteriores.`,
           pontos: picos.map(p => daSerie(ind, d, p)),
         });
@@ -360,7 +391,7 @@ export function detectarSinais(motor: MotorCliente, recorte: RecorteSinais): Sin
           tipo: 'quebra_de_tendencia', indicadores: [ind.id], diretoria: d,
           direcao: piora(ind, pm.antes, pm.depois) > 0 ? 'desfavoravel' : 'favoravel',
           periodo: { inicio: inicioNovo, fim: periodo.fim },
-          scoreBase: Math.min(1, dist / 0.6),
+          scoreBase: intensidade(dist, 0.6),
           evidencia: `${ind.nome}${onde(d)}: média de ${formatar(pm.antes, ind.unidade)} de ${validos[0].rotulo} a ${validos[pm.indice - 1].rotulo} e de ${formatar(pm.depois, ind.unidade)} de ${validos[pm.indice].rotulo} a ${validos[validos.length - 1].rotulo} (t = ${UMA_CASA.format(pm.t)}).`,
           pontos: validos.map(p => daSerie(ind, d, p)),
         });
@@ -377,51 +408,52 @@ export function detectarSinais(motor: MotorCliente, recorte: RecorteSinais): Sin
     const sinal = ind.polaridade === 'maior_melhor' ? -1 : 1;
     const q = trimestres.map(x => sinal * x.r.valor!) as [number, number, number, number];
     const total = distancia(ind, trimestres[3].r.valor!, trimestres[1].r.valor!);
-    if (pioraAcelerada(q, LIMIARES.pioraAceleracao) && total >= LIMIARES.piora) {
+    const z = zEventos(ind, trimestres[1].r, trimestres[3].r);
+    const significativo = z === null || sinal * z >= LIMIARES.pioraZ;
+    if (pioraAcelerada(q, LIMIARES.pioraAceleracao) && total >= LIMIARES.piora && significativo) {
       emitir({
         tipo: 'piora_acelerada', indicadores: [ind.id], diretoria: d, direcao: 'desfavoravel',
         periodo: { inicio: trimestres[0].p.inicio, fim: periodo.fim },
-        scoreBase: Math.min(1, total / 0.5),
+        scoreBase: intensidade(total, 0.5),
         evidencia: `${ind.nome}${onde(d)}, trimestres móveis: ${trimestres.map(x => `${rotuloPeriodo(x.p)} ${formatar(x.r.valor!, ind.unidade)}`).join('; ')}.`,
         pontos: trimestres.map(x => doValor(x.r, d, x.p)),
       });
     }
   }
 
-  function antecedente(par: ParAntecedente, d: Diretoria | null): void {
-    const causa = CATALOGO[par.causa];
-    const efeito = CATALOGO[par.efeito];
-    const relevancia = relevanciaDoEfeito(efeito, d);
-    if (relevancia === 0) return;
+  function porPatamar(par: ParAntecedente, d: Diretoria | null): NovoSinal | null {
+    const [causa, efeito] = [CATALOGO[par.causa], CATALOGO[par.efeito]];
     const filtros = filtrosDe(d);
+    const rc = motor.serie({ indicador: causa.id, periodo: historico, filtros });
+    const sc = rc.pontos.filter(p => p.valor !== null && p.amostraSuficiente);
+    const se = motor.serie({ indicador: efeito.id, periodo: historico, filtros }).pontos.filter(p => p.valor !== null && p.amostraSuficiente);
+    const causaMensal = rc.granularidade === 'mes';
+    const mc = sc.length >= 6 ? pontoDeMudanca(sc.map(p => p.valor!), causaMensal ? 4 : 3) : null;
+    const me = se.length >= 8 ? pontoDeMudanca(se.map(p => p.valor!), 4) : null;
+    if (!mc || !me) return null;
+    const quebraCausa = Math.abs(mc.t) >= (causaMensal ? LIMIARES.quebraT : LIMIARES.quebraTCiclos) && distancia(causa, mc.depois, mc.antes) >= LIMIARES.quebra;
+    const quebraEfeito = Math.abs(me.t) >= LIMIARES.quebraT && distancia(efeito, me.depois, me.antes) >= LIMIARES.quebra;
+    const sentido = Math.sign(mc.depois - mc.antes) * Math.sign(me.depois - me.antes);
+    // o ciclo de eNPS é medido no último mês do trimestre
+    const mesCausa: Mes = sc[mc.indice].periodo.fim;
+    const mesEfeito: Mes = se[me.indice].periodo.inicio;
+    const defasagem = mesIdx(mesEfeito) - mesIdx(mesCausa);
+    if (!quebraCausa || !quebraEfeito || sentido !== par.sentido || defasagem < 1 || defasagem > LIMIARES.antecedenteDefasagemMaxMeses) return null;
+    return {
+      tipo: 'indicador_antecedente', indicadores: [causa.id, efeito.id], diretoria: d, direcao: 'desfavoravel', periodo: historico,
+      scoreBase: intensidade(distancia(efeito, me.depois, me.antes), 0.6),
+      evidencia: `${causa.nome}${onde(d)}: mudança de patamar em ${rotuloMes(mesCausa)} (média de ${formatar(mc.antes, causa.unidade)} para ${formatar(mc.depois, causa.unidade)}); ${efeito.nome}: mudança em ${rotuloMes(mesEfeito)} (de ${formatar(me.antes, efeito.unidade)} para ${formatar(me.depois, efeito.unidade)}), ${defasagem} ${defasagem === 1 ? 'mês' : 'meses'} depois.`,
+      pontos: [...sc.map(p => daSerie(causa, d, p)), ...se.map(p => daSerie(efeito, d, p))],
+    };
+  }
 
-    if (par.metodo === 'mudanca_de_patamar') {
-      const sc = motor.serie({ indicador: causa.id, periodo: historico, filtros }).pontos.filter(p => p.valor !== null && p.amostraSuficiente);
-      const se = motor.serie({ indicador: efeito.id, periodo: historico, filtros }).pontos.filter(p => p.valor !== null && p.amostraSuficiente);
-      const mc = sc.length >= 6 ? pontoDeMudanca(sc.map(p => p.valor!), 3) : null;
-      const me = se.length >= 8 ? pontoDeMudanca(se.map(p => p.valor!), 4) : null;
-      if (!mc || !me) return;
-      const quebraCausa = Math.abs(mc.t) >= LIMIARES.quebraTCiclos && distancia(causa, mc.depois, mc.antes) >= LIMIARES.quebra;
-      const quebraEfeito = Math.abs(me.t) >= LIMIARES.quebraT && distancia(efeito, me.depois, me.antes) >= LIMIARES.quebra;
-      const sentido = Math.sign(mc.depois - mc.antes) * Math.sign(me.depois - me.antes);
-      // o ciclo de eNPS é medido no último mês do trimestre
-      const mesCausa: Mes = sc[mc.indice].periodo.fim;
-      const mesEfeito: Mes = se[me.indice].periodo.inicio;
-      const defasagem = mesIdx(mesEfeito) - mesIdx(mesCausa);
-      if (!quebraCausa || !quebraEfeito || sentido !== par.sentido || defasagem < 1 || defasagem > LIMIARES.antecedenteDefasagemMaxMeses) return;
-      emitir({
-        tipo: 'indicador_antecedente', indicadores: [causa.id, efeito.id], diretoria: d, direcao: 'desfavoravel', periodo: historico,
-        scoreBase: Math.min(1, distancia(efeito, me.depois, me.antes) / 0.6) * relevancia,
-        evidencia: `${causa.nome}${onde(d)} mudou de patamar em ${rotuloMes(mesCausa)} (média de ${formatar(mc.antes, causa.unidade)} para ${formatar(mc.depois, causa.unidade)}); ${efeito.nome} mudou em ${rotuloMes(mesEfeito)} (de ${formatar(me.antes, efeito.unidade)} para ${formatar(me.depois, efeito.unidade)}), ${defasagem} ${defasagem === 1 ? 'mês' : 'meses'} depois.`,
-        pontos: [...sc.map(p => daSerie(causa, d, p)), ...se.map(p => daSerie(efeito, d, p))],
-      });
-      return;
-    }
-
+  function porVariacoes(par: ParAntecedente, d: Diretoria | null): NovoSinal | null {
+    const [causa, efeito] = [CATALOGO[par.causa], CATALOGO[par.efeito]];
+    const filtros = filtrosDe(d);
     const sx = motor.serie({ indicador: causa.id, periodo: historico, filtros, granularidade: 'mes' }).pontos;
     const sy = motor.serie({ indicador: efeito.id, periodo: historico, filtros, granularidade: 'mes' }).pontos;
     const pares = sx.map((p, i) => [p, sy[i]] as const).filter(([a, b]) => a.valor !== null && b.valor !== null);
-    if (pares.length < 12) return;
+    if (pares.length < 12) return null;
     const rs = correlacoesDefasadas(pares.map(([a]) => a.valor!), pares.map(([, b]) => b.valor!), 3);
     const r0 = rs[0] ?? 0;
     let melhor = 0;
@@ -430,14 +462,25 @@ export function detectarSinais(motor: MotorCliente, recorte: RecorteSinais): Sin
       if (r !== null && Math.sign(r) === par.sentido && Math.abs(r) > Math.abs(rs[melhor] ?? 0)) melhor = L;
     }
     const rL = rs[melhor];
-    if (melhor === 0 || rL === null || Math.abs(rL) < LIMIARES.antecedenteR) return;
-    if (Math.abs(rL) - (Math.sign(r0) === par.sentido ? Math.abs(r0) : 0) < LIMIARES.antecedenteGanho) return;
-    emitir({
+    if (melhor === 0 || rL === null || Math.abs(rL) < LIMIARES.antecedenteR) return null;
+    if (Math.abs(rL) - (Math.sign(r0) === par.sentido ? Math.abs(r0) : 0) < LIMIARES.antecedenteGanho) return null;
+    return {
       tipo: 'indicador_antecedente', indicadores: [causa.id, efeito.id], diretoria: d, direcao: 'desfavoravel', periodo: historico,
-      scoreBase: Math.abs(rL) * relevancia,
-      evidencia: `${causa.nome} e ${efeito.nome}${onde(d)}: correlação entre as variações mensais com ${melhor} ${melhor === 1 ? 'mês' : 'meses'} de defasagem r = ${UMA_CASA.format(rL)}; sem defasagem r = ${UMA_CASA.format(r0)} (${pares[0][0].rotulo} a ${pares[pares.length - 1][0].rotulo}).`,
+      scoreBase: Math.abs(rL),
+      evidencia: `${causa.nome} e ${efeito.nome}${onde(d)}: correlação entre as variações mensais com ${melhor} ${melhor === 1 ? 'mês' : 'meses'} de defasagem r = ${DUAS_CASAS.format(rL)}; sem defasagem r = ${DUAS_CASAS.format(r0)} (${pares[0][0].rotulo} a ${pares[pares.length - 1][0].rotulo}).`,
       pontos: pares.flatMap(([a, b]) => [daSerie(causa, d, a), daSerie(efeito, d, b)]),
-    });
+    };
+  }
+
+  function antecedente(par: ParAntecedente, d: Diretoria | null): void {
+    if (!efeitoRelevante(CATALOGO[par.efeito], d)) return;
+    for (const metodo of par.metodos) {
+      const s = metodo === 'variacoes' ? porVariacoes(par, d) : porPatamar(par, d);
+      if (s) {
+        emitir(s);
+        return;
+      }
+    }
   }
 
   for (const ind of INDICADORES) {
