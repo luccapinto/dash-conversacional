@@ -222,7 +222,8 @@ function janelasDo(ind: Indicador): Set<JanelaTermo> {
   return new Set(termosDo(ind.calculo).flatMap(t => t.map(([, , j]) => j)));
 }
 
-function leituraDe(ind: Indicador): Leitura {
+/** Como a janela é lida pelo indicador (fluxo somado, estoque no fim, variação ou ciclos) */
+export function leituraDe(ind: Indicador): Leitura {
   const janelas = janelasDo(ind);
   if (janelas.has('primeiro')) return 'variação no período';
   if (!janelas.has('soma')) return 'fim do período';
