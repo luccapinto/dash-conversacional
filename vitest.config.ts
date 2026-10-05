@@ -9,6 +9,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
+      // O Next resolve `import 'server-only'` internamente; fora do Next (vitest) é um módulo vazio.
+      'server-only': path.resolve(__dirname, 'node_modules/next/dist/compiled/server-only/empty.js'),
     },
   },
 });
