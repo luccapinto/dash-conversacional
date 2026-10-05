@@ -315,6 +315,62 @@ export interface Requisicao {
   custo: number;
 }
 
+// ── Tabelas de eventos (derivadas do roster; `mes` = mês em que o fluxo é contado) ──
+
+export interface EventoAdmissao {
+  pessoa: string;
+  mes: Mes;
+  diretoria: Diretoria;
+  especialidade: string;
+  senioridade: Senioridade;
+  requisicao: string;
+}
+
+export interface EventoDesligamento {
+  pessoa: string;
+  mes: Mes;
+  diretoria: Diretoria;
+  especialidade: string;
+  senioridade: Senioridade;
+  tipo: TipoDesligamento;
+  motivo: MotivoDesligamento;
+  tempoDeCasaMeses: number;
+  performance: Performance;
+  faixa: FaixaSalarial;
+  salario: number;
+}
+
+/** Promoção decidida em `mes`; a nova senioridade vale a partir do mês seguinte */
+export interface EventoPromocao {
+  pessoa: string;
+  mes: Mes;
+  diretoria: Diretoria;
+  especialidade: string;
+  de: Senioridade;
+  para: Senioridade;
+  /** vaga preenchida pela promoção (null = promoção de ciclo, sem vaga) */
+  requisicao: string | null;
+}
+
+/** Movimentação lateral decidida em `mes`; a nova posição vale a partir do mês seguinte */
+export interface EventoMovimentacao {
+  pessoa: string;
+  mes: Mes;
+  senioridade: Senioridade;
+  de: { diretoria: Diretoria; especialidade: string };
+  para: { diretoria: Diretoria; especialidade: string };
+  /** vaga preenchida pela movimentação (null = rotação sem vaga) */
+  requisicao: string | null;
+}
+
+export interface Eventos {
+  admissoes: EventoAdmissao[];
+  desligamentos: EventoDesligamento[];
+  promocoes: EventoPromocao[];
+  movimentacoes: EventoMovimentacao[];
+  requisicoes: Requisicao[];
+}
+
 // ── Helpers de histórico ──────────────────────────────────────────────────────
 
 /** Segmento em vigor no mês `mes` (ou null se a pessoa ainda não tinha sido admitida) */
