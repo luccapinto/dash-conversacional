@@ -44,6 +44,8 @@ export const MIN_AMOSTRA = 30;
 export const LIFT_RISCO = 1.3;
 export const LIFT_PROTECAO = 1 / LIFT_RISCO;
 export const MIN_EVENTOS_ESPERADOS = 5;
+/** Drivers: um par de atributos só entra se o lift dele passa o de cada atributo sozinho nesta proporção */
+export const GANHO_COMBINACAO = 1.15;
 
 export class ErroConsulta extends Error {
   override name = 'ErroConsulta';
@@ -180,6 +182,8 @@ export interface ResultadoDrivers {
   total: ResultadoValor;
   fatoresDeRisco: Fator[];
   fatoresProtetivos: Fator[];
+  /** pares de atributos cujo lift passa o de cada atributo sozinho */
+  combinacoes: Fator[];
   metodo: string;
   aviso: string | null;
   rastreio: Rastreio;
@@ -505,40 +509,41 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
       const taxaTotal = tot.valor ?? 0;
       const candidatas = dimensoes(ind.id).filter(d => filtros[d] === undefined);
 
-      const avaliarGrupos = (agrupar: Dimensao[]): Fator[] =>
+      const avaliarGrupos = (agrupar: Dimensao[], minN: number, minEsperado: number): Fator[] =>
         agregados(ind, periodo, filtros, agrupar).flatMap(({ chave, a }) => {
           const valor = ind.calcular(a);
           const den = somarTermo(calc.denominador, a);
           const n = amostraDe(ind, a);
           const esperado = taxaTotal / calc.escala * den;
-          if (valor === null || taxaTotal === 0 || n < MIN_AMOSTRA || esperado < MIN_EVENTOS_ESPERADOS) return [];
+          if (valor === null || taxaTotal === 0 || n < minN || esperado < minEsperado) return [];
           return [{ segmento: chave, valor, lift: valor / taxaTotal, eventos: somarTermo(calc.numerador, a), n, amostraSuficiente: true }];
         });
-      const forte = (f: Fator) => f.lift >= LIFT_RISCO || f.lift <= LIFT_PROTECAO;
+      const risco = (f: Fator) => f.lift >= LIFT_RISCO;
+      const protecao = (f: Fator) => f.lift <= LIFT_PROTECAO;
 
-      const univariados = candidatas.flatMap(d => avaliarGrupos([d]));
+      const univariados = candidatas.flatMap(d => avaliarGrupos([d], MIN_AMOSTRA, MIN_EVENTOS_ESPERADOS));
       const liftDe = new Map(univariados.map(f => [JSON.stringify(f.segmento), f.lift]));
-      const dimsFortes = candidatas.filter(d => univariados.some(f => f.segmento[d] !== undefined && forte(f)));
-      const pares: Fator[] = [];
+      const dimsFortes = candidatas.filter(d => univariados.some(f => f.segmento[d] !== undefined && (risco(f) || protecao(f))));
+      // pares: amostra em dobro e o par precisa dizer mais do que cada atributo sozinho
+      const combinacoes: Fator[] = [];
       for (let i = 0; i < dimsFortes.length; i++) {
         for (let j = i + 1; j < dimsFortes.length; j++) {
-          for (const f of avaliarGrupos([dimsFortes[i], dimsFortes[j]])) {
-            const [d1, d2] = [dimsFortes[i], dimsFortes[j]];
+          const [d1, d2] = [dimsFortes[i], dimsFortes[j]];
+          for (const f of avaliarGrupos([d1, d2], 2 * MIN_AMOSTRA, 2 * MIN_EVENTOS_ESPERADOS)) {
             const l1 = liftDe.get(JSON.stringify({ [d1]: f.segmento[d1] })) ?? 1;
             const l2 = liftDe.get(JSON.stringify({ [d2]: f.segmento[d2] })) ?? 1;
-            // o par só entra se a combinação diz mais do que cada atributo sozinho
-            if (f.lift >= LIFT_RISCO && f.lift > Math.max(l1, l2) * 1.1) pares.push(f);
-            if (f.lift <= LIFT_PROTECAO && f.lift < Math.min(l1, l2) / 1.1) pares.push(f);
+            if ((risco(f) && f.lift >= Math.max(l1, l2) * GANHO_COMBINACAO) || (protecao(f) && f.lift <= Math.min(l1, l2) / GANHO_COMBINACAO)) combinacoes.push(f);
           }
         }
       }
-      const todos = [...univariados, ...pares];
-      const fatoresDeRisco = todos.filter(f => f.lift >= LIFT_RISCO).sort((x, y) => y.lift - x.lift).slice(0, 8);
-      const fatoresProtetivos = todos.filter(f => f.lift <= LIFT_PROTECAO).sort((x, y) => x.lift - y.lift).slice(0, 6);
+      const forca = (f: Fator) => Math.abs(Math.log(f.lift));
       const eventos = somarTermo(calc.numerador, totalA);
       return {
-        indicador, unidade: ind.unidade, total: tot, fatoresDeRisco, fatoresProtetivos,
-        metodo: `Lift = taxa do segmento ÷ taxa do recorte. Varre cada atributo do roster e os pares de atributos fortes; um par só entra se o lift dele supera o de cada atributo isolado em 10%. Segmentos com menos de ${MIN_AMOSTRA} pessoas ou menos de ${MIN_EVENTOS_ESPERADOS} eventos esperados ficam de fora. Risco: lift ≥ ${LIFT_RISCO}; proteção: lift ≤ ${LIFT_PROTECAO.toFixed(2)}.`,
+        indicador, unidade: ind.unidade, total: tot,
+        fatoresDeRisco: univariados.filter(risco).sort((x, y) => y.lift - x.lift).slice(0, 8),
+        fatoresProtetivos: univariados.filter(protecao).sort((x, y) => x.lift - y.lift).slice(0, 6),
+        combinacoes: combinacoes.sort((x, y) => forca(y) - forca(x)).slice(0, 6),
+        metodo: `Lift = taxa do segmento ÷ taxa do recorte. Fatores: cada atributo do roster, com pelo menos ${MIN_AMOSTRA} pessoas e ${MIN_EVENTOS_ESPERADOS} eventos esperados; risco com lift ≥ ${LIFT_RISCO}, proteção com lift ≤ ${LIFT_PROTECAO.toFixed(2)}. Combinações: pares de atributos fortes, com o dobro de amostra, que só entram se o lift do par passa o de cada atributo sozinho em ${Math.round((GANHO_COMBINACAO - 1) * 100)}%.`,
         aviso: eventos < MIN_EVENTOS_ESPERADOS * 3 ? `Só ${eventos} eventos no recorte: leia os drivers como indicativos.` : null,
         rastreio: { ...tot.rastreio, parametros: { periodo, filtros } },
       };

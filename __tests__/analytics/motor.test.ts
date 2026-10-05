@@ -5,7 +5,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CATALOGO, INDICADORES, type IdIndicador } from '@/lib/analytics/catalog';
-import { MIN_AMOSTRA, ErroConsulta, type Periodo } from '@/lib/analytics/engine';
+import { GANHO_COMBINACAO, MIN_AMOSTRA, ErroConsulta, type Periodo } from '@/lib/analytics/engine';
 import { motorCliente } from '@/lib/analytics/cliente';
 import { motorServidor } from '@/lib/analytics/servidor';
 import type { Motor } from '@/lib/analytics/engine';
@@ -204,6 +204,20 @@ describe('drivers', () => {
     for (const f of r.fatoresProtetivos) expect(f.lift).toBeLessThanOrEqual(0.77);
     // ordenados do mais forte para o mais fraco
     for (let i = 1; i < r.fatoresDeRisco.length; i++) expect(r.fatoresDeRisco[i - 1].lift).toBeGreaterThanOrEqual(r.fatoresDeRisco[i].lift);
+  });
+
+  it('fatores são atributos isolados; combinações são pares que dizem mais do que cada atributo sozinho', () => {
+    const r = servidor.drivers({ indicador: 'turnover', periodo: JANELA });
+    for (const f of [...r.fatoresDeRisco, ...r.fatoresProtetivos]) expect(Object.keys(f.segmento)).toHaveLength(1);
+    expect(r.combinacoes.length).toBeGreaterThan(0);
+    for (const c of r.combinacoes) {
+      const dims = Object.keys(c.segmento) as (keyof typeof c.segmento)[];
+      expect(dims).toHaveLength(2);
+      expect(c.n).toBeGreaterThanOrEqual(2 * MIN_AMOSTRA);
+      const sozinhos = dims.map(d => servidor.decompor({ indicador: 'turnover', dimensao: d, periodo: JANELA }).segmentos.find(s => s.segmento === c.segmento[d])!.valor! / r.total.valor!);
+      if (c.lift > 1) expect(c.lift).toBeGreaterThanOrEqual(Math.max(...sozinhos) * GANHO_COMBINACAO - 1e-9);
+      else expect(c.lift).toBeLessThanOrEqual(Math.min(...sozinhos) / GANHO_COMBINACAO + 1e-9);
+    }
   });
 
   it('não roda no cliente (o cubo não tem os atributos individuais)', () => {
