@@ -345,7 +345,7 @@ export function simular(): ResultadoSimulacao {
   // ── Saídas ────────────────────────────────────────────────────────────────
 
   function notaDefasada(s: Sim, t: Mes): number | null {
-    const limite = somarMeses(t, -2);
+    const limite = somarMeses(t, -C.DEFASAGEM_PROCURA_MESES);
     let nota: number | null = null;
     for (const n of s.notas) if (n.mes <= limite) nota = n.nota;
     return nota;
@@ -367,7 +367,11 @@ export function simular(): ResultadoSimulacao {
       if (perf === 'acima' && subpago && veterano) m *= 1 + (calor - 1);
     }
     m *= C.multNota(notaDefasada(s, t));
-    m *= C.MULT_TROCAS_GESTOR[Math.min(2, s.trocas.filter(x => x <= t && mesIdx(t) - mesIdx(x) < 12).length)];
+    const trocas = s.trocas.filter(x => {
+      const desde = mesIdx(t) - mesIdx(x);
+      return desde >= C.DEFASAGEM_PROCURA_MESES && desde < C.DEFASAGEM_PROCURA_MESES + 12;
+    }).length;
+    m *= C.MULT_TROCAS_GESTOR[Math.min(2, trocas)];
     if (tempoDeCasa(s.p.admissao, t) < 12) {
       m *= C.MULT_NOVATO;
       if (s.p.onboarding === 'incompleto') m *= C.MULT_ONBOARDING_INCOMPLETO;
@@ -466,11 +470,14 @@ export function simular(): ResultadoSimulacao {
     const cicloIdx = CICLOS_ENPS.indexOf(t);
 
     // 1. Atividade mensal
+    const choque = Object.fromEntries(DIRETORIAS.map(d => [d, rng.normal(0, C.CHOQUE_HORAS_EXTRAS_DP)])) as Record<Diretoria, number>;
+    const surto = Object.fromEntries(DIRETORIAS.map(d => [d, rng.normal(0, C.CHOQUE_AUSENCIA_DP)])) as Record<Diretoria, number>;
     for (const s of ativasInicio) {
       const dir = s.seg.diretoria;
-      const extras = ehLideranca(s.seg.senioridade) ? 0 : rng.poisson(C.HORAS_EXTRAS_BASE[dir] + C.HORAS_EXTRAS_POR_VAGA * vacanciaAnterior[dir]);
+      const lambda = Math.max(0, C.HORAS_EXTRAS_BASE[dir] + C.HORAS_EXTRAS_POR_VAGA * vacanciaAnterior[dir] + choque[dir]);
+      const extras = ehLideranca(s.seg.senioridade) ? 0 : rng.poisson(lambda);
       const pressaoClima = dir === 'Operações' ? -0.04 * C.clima(dir, t) : 0;
-      const ausencia = rng.poisson(C.AUSENCIA_BASE + C.AUSENCIA_POR_HORA_EXTRA * Math.max(0, s.extrasAnterior - C.LIMITE_HORAS_AUSENCIA) + pressaoClima);
+      const ausencia = rng.poisson(Math.max(0, C.AUSENCIA_BASE + C.AUSENCIA_POR_HORA_EXTRA * Math.max(0, s.extrasAnterior - C.LIMITE_HORAS_AUSENCIA) + pressaoClima + surto[dir]));
       const casa = tempoDeCasa(s.p.admissao, t);
       const onboarding = casa >= 1 && casa <= 3 ? C.TREINO_ONBOARDING[s.p.onboarding] : 0;
       const treino = rng.poisson(C.TREINO_BASE[dir] + onboarding);

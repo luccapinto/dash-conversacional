@@ -112,8 +112,8 @@ export const FAIXA_MULHERES = [0.1, 0.24, 0.41, 0.16, 0.09];
 export const FAIXA_TALENTO_TECH = [0.16, 0.3, 0.36, 0.12, 0.06];
 export const INICIO_TALENTO_TECH: Mes = '2024-01';
 
-/** Faixa de quem é promovido (piso, q1, mediana) */
-export const FAIXA_PROMOVIDO = [0.25, 0.6, 0.15];
+/** Faixa de quem é promovido (piso, q1, mediana): a promoção vem com aumento, raramente cai no piso */
+export const FAIXA_PROMOVIDO = [0.1, 0.55, 0.35];
 
 // ── Atributos pessoais ────────────────────────────────────────────────────────
 
@@ -198,7 +198,13 @@ export function aquecimentoTech(mes: Mes): number {
   return 1.5;
 }
 
-/** Multiplicador de saída voluntária por nota latente de eNPS (lida com 2 meses de defasagem) */
+/**
+ * L3/N1: tempo entre a insatisfação e a saída (procurar e conseguir outro emprego). Vale para a
+ * nota latente de eNPS e para as trocas de gestor: nenhuma das duas tira alguém no mesmo mês.
+ */
+export const DEFASAGEM_PROCURA_MESES = 3;
+
+/** Multiplicador de saída voluntária por nota latente de eNPS (lida com DEFASAGEM_PROCURA_MESES) */
 export function multNota(nota: number | null): number {
   if (nota === null) return 1;
   if (nota <= 4) return 3.5;
@@ -207,13 +213,13 @@ export function multNota(nota: number | null): number {
   return 0.5;
 }
 
-/** L3: trocas de gestor nos últimos 12 meses (0, 1, 2+) */
+/** L3: trocas de gestor nos 12 meses anteriores à defasagem de procura (0, 1, 2+) */
 export const MULT_TROCAS_GESTOR = [1, 1.3, 2.0] as const;
 export const MULT_NOVATO = 1.1;
 /** N4: novato sem onboarding */
 export const MULT_ONBOARDING_INCOMPLETO = 4.5;
 /** N5: movimentou-se nos últimos 12 meses */
-export const MULT_MOBILIDADE_RECENTE = 0.45;
+export const MULT_MOBILIDADE_RECENTE = 0.35;
 /** N2: horas extras do mês anterior acima do limite */
 export const LIMITE_HORAS_EXTRAS = 16;
 export const MULT_HORAS_EXTRAS = 1.3;
@@ -259,11 +265,15 @@ export const HORAS_EXTRAS_BASE: Record<Diretoria, number> = {
 };
 /** N2: horas extras adicionais por ponto de taxa de vagas abertas do mês anterior */
 export const HORAS_EXTRAS_POR_VAGA = 90;
+/** Choque mensal de demanda por diretoria (fechamentos, prazos): desvio-padrão em h/pessoa */
+export const CHOQUE_HORAS_EXTRAS_DP = 0.6;
 
 export const AUSENCIA_BASE = 0.4;
 /** N2: dias de ausência adicionais por hora extra acima de 4h no mês anterior */
-export const AUSENCIA_POR_HORA_EXTRA = 0.05;
+export const AUSENCIA_POR_HORA_EXTRA = 0.07;
 export const LIMITE_HORAS_AUSENCIA = 4;
+/** Choque mensal de saúde por diretoria (gripe, surtos): desvio-padrão em dias/pessoa */
+export const CHOQUE_AUSENCIA_DP = 0.04;
 export const DIAS_UTEIS_MES = 21;
 
 export const TREINO_BASE: Record<Diretoria, number> = {
