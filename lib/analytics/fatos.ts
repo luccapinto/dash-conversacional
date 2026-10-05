@@ -104,7 +104,7 @@ export const MEDIDAS_FLUXO = [
   'adm', 'desl', 'deslVol', 'deslLam', 'deslNov',
   'promo', 'mob', 'saiDiretoria',
   'treino', 'ausencia', 'extras',
-  'salDesl', 'custoAusencia', 'custoExtras',
+  'salDesl', 'salDeslVol', 'salDeslLam', 'salDeslNov', 'custoAusencia', 'custoExtras',
   'enpsResp', 'enpsProm', 'enpsDetr',
 ] as const;
 
@@ -262,6 +262,9 @@ export function construirFatos(pessoas: readonly Pessoa[], requisicoes: readonly
           ausencia,
           extras,
           salDesl: desl ? seg.salario : 0,
+          salDeslVol: vol ? seg.salario : 0,
+          salDeslLam: vol && p.performance === 'acima' ? seg.salario : 0,
+          salDeslNov: desl && casa < 12 ? seg.salario : 0,
           custoAusencia: Math.round(ausencia * seg.salario / DIAS_UTEIS_MES),
           custoExtras: Math.round(extras * seg.salario / HORAS_MES * ADICIONAL_HORA_EXTRA),
           enpsResp: nota !== null ? 1 : 0,
