@@ -3,11 +3,18 @@
  * validador que os aplica.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import type { Motor } from '@/lib/analytics/engine';
 import { ESQUEMAS_ARGUMENTOS, validarArgs } from '@/lib/analytics/schemas';
 import { motorServidor } from '@/lib/analytics/servidor';
 
 const periodo = { inicio: '2025-10', fim: '2026-09' };
+let motor: Motor;
+
+// monta a tabela de fatos do roster uma vez (é pesado)
+beforeAll(() => {
+  motor = motorServidor();
+});
 
 describe('esquemas', () => {
   it('um esquema por função do motor, serializável em JSON e fechado a propriedades extras', () => {
@@ -32,7 +39,6 @@ describe('validarArgs', () => {
       ['drivers', { indicador: 'early_attrition', periodo }],
       ['impacto', { indicador: 'horas_extras_pc', periodo }],
     ] as const;
-    const motor = motorServidor();
     for (const [funcao, args] of chamadas) {
       const r = validarArgs(funcao, args);
       expect(r, funcao).toEqual({ ok: true, args });

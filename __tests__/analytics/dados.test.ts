@@ -145,6 +145,7 @@ describe('calibração', () => {
   });
 
   it('todo gestor de quem está ativo é uma pessoa ativa (exceto diretores, que reportam ao CEO)', () => {
+    const orfaos: string[] = [];
     for (const t of MESES) {
       const proximo = somarMeses(t, 1);
       const ativos = new Set(pessoas.filter(p => ativaNoFim(p, t)).map(p => p.id));
@@ -153,9 +154,10 @@ describe('calibração', () => {
         if (!ativos.has(p.id)) continue;
         const g = gestorEm(p, proximo);
         if (g === null) semGestor++;
-        else expect(ativos.has(g), `${t} ${p.id} → ${g}`).toBe(true);
+        else if (!ativos.has(g)) orfaos.push(`${t} ${p.id} → ${g}`);
       }
-      expect(semGestor).toBe(DIRETORIAS.length);
+      expect(semGestor, t).toBe(DIRETORIAS.length);
     }
+    expect(orfaos).toEqual([]);
   });
 });
