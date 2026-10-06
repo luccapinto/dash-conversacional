@@ -98,7 +98,8 @@ interface Linha {
 }
 
 const s = (ms: number | null) => (ms === null ? '—' : (ms / 1000).toFixed(1).replace('.', ','));
-const pct = (v: number, t: number) => (t === 0 ? '—' : `${Math.round((v / t) * 100)}%`);
+/** 1 casa, truncada: 600/603 vira 99,5%, nunca "100%" */
+const pct = (v: number, t: number) => (t === 0 ? '—' : `${(Math.floor((v / t) * 1000) / 10).toFixed(1).replace('.', ',')}%`);
 function quantil(v: number[], q: number): number {
   const o = [...v].sort((a, b) => a - b);
   return o[Math.min(o.length - 1, Math.floor(q * o.length))];
