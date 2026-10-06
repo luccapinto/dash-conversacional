@@ -11,7 +11,7 @@ import { detectarSinais, formatar, LENTES } from '@/lib/analytics/signals';
 import { verificarNumeros } from '@/lib/agente/guarda';
 import { provedoresDoAmbiente } from '@/lib/agente/llm';
 import { layoutDeterministico } from '@/lib/layout/deterministico';
-import { gerarLayout, prepararEntradaIA, type RespostaLayoutIA } from '@/lib/layout/gerador';
+import { anotacoesDesenhaveis, gerarLayout, prepararEntradaIA, type RespostaLayoutIA } from '@/lib/layout/gerador';
 import {
   ancorasDoSinal,
   chaveLayout,
@@ -24,6 +24,8 @@ import {
   valoresDosSinais,
   type RecorteLayout,
 } from '@/lib/layout/spec';
+import { dadosDosGraficos } from '@/lib/painel/graficos';
+import { chaveGrafico } from '@/lib/painel/chave-grafico';
 import { erroHttp, fetchFalso, texto } from '../agente/sse';
 
 const provedores = provedoresDoAmbiente({ DEEPSEEK_API_KEY: 'chave-ds-teste', OPENROUTER_API_KEY: 'chave-or-teste' });
@@ -152,5 +154,57 @@ describe('gerarLayout', () => {
     const semChave = await gerarLayout(recorte, { motor: motorCliente, provedores: [], log: silencioso });
     expect(semChave.spec).toEqual(r.spec);
     expect(semChave.spec.cards.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it.each([
+    ['card', (r: RespostaLayoutIA) => ({ ...r, cards: r.cards.map((c, i) => (i === 1 ? { ...c, titulo: 'Saídas voluntárias sobem em Gente' } : c)) })],
+    ['manchete', (r: RespostaLayoutIA) => ({ ...r, manchete: 'Clima de Operações cai e Tecnologia sente' })],
+    ['gráfico', (r: RespostaLayoutIA) => ({ ...r, graficos: [{ ...r.graficos[0], titulo: 'eNPS de Produtos & Plataforma muda de patamar' }, r.graficos[1]] })],
+  ])('rejeita %s que cita diretoria diferente da do sinal e cai no determinístico', async (_, mudar) => {
+    const { fetch } = fetchFalso([texto(JSON.stringify(mudar(respostaValida())))]);
+    const r = await gerarLayout(recorte, { motor: motorCliente, provedores, fetch, log: silencioso });
+    expect(r.spec.origem).toBe('deterministico');
+    expect(r.motivo).toMatch(/cita (Gente|Tecnologia|Produtos & Plataforma), mas o sinal é de Operações/);
+  });
+
+  it('liga o card ao sinal da diretoria que o título cita, não ao primeiro sinal do indicador', async () => {
+    const geral: RecorteLayout = { periodo: PERIODOS_PADRAO[0].periodo, diretoria: null, lente: 'ceo' };
+    const e = prepararEntradaIA(sinaisDoRecorte(motorCliente, geral));
+    // um indicador com sinais de diretorias diferentes; o título cita a do segundo
+    const doIndicador = (id: string) => e.sinais.filter(s => s.sinal.indicadores.includes(id as never) && s.sinal.diretoria);
+    const id = e.sinais.flatMap(s => s.sinal.indicadores).find(i => new Set(doIndicador(i).map(s => s.sinal.diretoria)).size > 1)!;
+    const alvo = doIndicador(id).find(s => s.sinal.diretoria !== doIndicador(id)[0].sinal.diretoria)!.sinal;
+    const resposta: RespostaLayoutIA = {
+      manchete: `${CATALOGO[id].nome} pede atenção em ${alvo.diretoria}`,
+      cards: [id, ...['headcount', 'admissoes', 'enps', 'absenteismo', 'folha', 'turnover', 'time_to_fill'].filter(x => x !== id)].slice(0, 8).map((indicador, i) => ({
+        indicador: indicador as RespostaLayoutIA['cards'][number]['indicador'],
+        destaque: 'normal',
+        titulo: i === 0 ? `${CATALOGO[id].nome} em ${alvo.diretoria}` : null,
+      })),
+      graficos: [{ sinal: e.sinais.find(s => s.sinal.id === alvo.id)!.ref, titulo: 'Onde o sinal aparece' }],
+      anotacoes: [],
+      deepDives: e.sinais.slice(0, 3).map(s => ({ sinal: s.ref, ancora: null, pergunta: 'O que explica este sinal?' })),
+    };
+    const { fetch } = fetchFalso([texto(JSON.stringify(resposta))]);
+    const r = await gerarLayout(geral, { motor: motorCliente, provedores, fetch, log: silencioso });
+    expect(r.motivo).toBeNull();
+    expect(r.spec.cards[0]).toMatchObject({ indicador: id, sinal: alvo.id });
+  });
+});
+
+describe('anotações desenháveis', () => {
+  it('descarta a anotação cujo mês não está na série do gráfico que a exibe e mantém a do histórico', () => {
+    const antigo: RecorteLayout = { periodo: { inicio: '2024-10', fim: '2025-09' }, diretoria: 'Operações', lente: 'chro' };
+    const s = sinaisDoRecorte(motorCliente, antigo);
+    const spec = layoutDeterministico(antigo, s);
+    const dados = dadosDosGraficos(motorCliente, antigo, s);
+    const g = spec.graficos.find(x => x.tipo !== 'ranking_diretorias')!;
+    const d = dados[chaveGrafico(g)];
+    const serie = d.tipo === 'ranking_diretorias' ? null : d.series[0];
+    const em = (mes: string, rotulo: string) => ({ ancora: { indicador: serie!.indicador, diretoria: g.diretoria, periodo: { inicio: mes, fim: mes }, rotulo }, texto: rotulo, sinal: g.sinal });
+    const historico = em(serie!.pontos[0].mes, serie!.pontos[0].rotulo);
+    const depoisDoFim = em('2026-03', 'Mar/26');
+    const comNotas = { ...spec, anotacoes: [historico, depoisDoFim] };
+    expect(anotacoesDesenhaveis(comNotas, dados)).toEqual([historico]);
   });
 });

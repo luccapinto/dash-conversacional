@@ -6,17 +6,20 @@
  * suportado pela DeepSeek; o prompt traz a palavra JSON e um exemplo, como a doc pede).
  *
  * Qualquer falha cai no layout determinístico: IA fora do ar, JSON quebrado ou vazio, resposta
- * fora do schema, referência inexistente, ou texto com número que não está nos sinais (guarda de
- * números, aqui bloqueante).
+ * fora do schema, referência inexistente, texto com número que não está nos sinais (guarda de
+ * números, aqui bloqueante) ou que cita uma diretoria diferente da do sinal que o justifica.
  */
 
 import { CATALOGO, type IdIndicador } from '@/lib/analytics/catalog';
+import { DIRETORIAS, type Diretoria } from '@/lib/analytics/dominio';
 import type { MotorCliente } from '@/lib/analytics/engine';
 import { validarEsquema, type JsonSchema } from '@/lib/analytics/schemas';
 import { formatar, type Sinal } from '@/lib/analytics/signals';
 import { chamarLLM, type NomeProvedor, type Provedor, type Uso } from '@/lib/agente/llm';
 import { DESCRICAO_LENTE } from '@/lib/agente/prompt';
 import { descreverRecorte } from '@/lib/agente/rotulos';
+import { chaveGrafico } from '@/lib/painel/chave-grafico';
+import { dadosDosGraficos, type DadosGrafico } from '@/lib/painel/graficos';
 import { IDS_PAINEL, INDICADORES_PAINEL } from '@/lib/painel/indicadores';
 import { layoutDeterministico } from './deterministico';
 import {
@@ -31,6 +34,7 @@ import {
   validarLayout,
   valorDaAncora,
   type AncoraLayout,
+  type AnotacaoLayout,
   type Destaque,
   type LayoutSpec,
   type RecorteLayout,
@@ -101,6 +105,60 @@ function esquemaResposta(e: EntradaIA): JsonSchema {
   });
 }
 
+// ── Diretoria citada × sinal ──────────────────────────────────────────────────
+
+/**
+ * Cada diretoria como aparece num texto, com maiúscula e palavra inteira: o nome do catálogo, a
+ * sigla (P&P) ou a primeira palavra do nome composto ("Produtos").
+ */
+const CITACOES = DIRETORIAS.map(d => {
+  const partes = d.split(' & ');
+  const formas = partes.length > 1 ? [d, partes.map(p => p[0]).join('&'), partes[0]] : [d];
+  return [d, new RegExp(`(?<!\\p{L})(?:${formas.join('|')})(?!\\p{L})`, 'u')] as const;
+});
+
+function diretoriasCitadas(texto: string): Diretoria[] {
+  return CITACOES.filter(([, re]) => re.test(texto)).map(([d]) => d);
+}
+
+/**
+ * Textos que citam uma diretoria diferente da do sinal que os justifica. Lista fechada: as 6
+ * diretorias, e sinal sem diretoria é da Empresa (aí nenhuma diretoria pode ser citada). Card sem
+ * sinal responde pelo recorte; a manchete, pelo recorte e por todos os sinais que o layout usa.
+ */
+export function diretoriasForaDoSinal(spec: LayoutSpec, sinais: readonly Sinal[]): string[] {
+  const diretoriaDe = new Map(sinais.map(s => [s.id, s.diretoria]));
+  const escopo = (sinal: string | null) => (sinal === null ? spec.recorte.diretoria : diretoriaDe.get(sinal) ?? null);
+  const erros: string[] = [];
+  const conferir = (onde: string, texto: string | null, permitidas: readonly (Diretoria | null)[]) => {
+    const fora = texto ? diretoriasCitadas(texto).filter(d => !permitidas.includes(d)) : [];
+    if (fora.length) erros.push(`${onde}: cita ${fora.join(', ')}, mas o sinal é de ${[...new Set(permitidas.map(d => d ?? 'Empresa'))].join(', ')}`);
+  };
+  spec.cards.forEach((c, i) => conferir(`cards[${i}].titulo`, c.titulo, [escopo(c.sinal)]));
+  spec.graficos.forEach((g, i) => conferir(`graficos[${i}].titulo`, g.titulo, [escopo(g.sinal)]));
+  spec.anotacoes.forEach((a, i) => conferir(`anotacoes[${i}].texto`, a.texto, [escopo(a.sinal)]));
+  spec.deepDives.forEach((d, i) => conferir(`deepDives[${i}].pergunta`, d.pergunta, [escopo(d.sinal)]));
+  const usados = [...spec.cards, ...spec.graficos, ...spec.anotacoes, ...spec.deepDives].flatMap(x => (x.sinal === null ? [] : [escopo(x.sinal)]));
+  conferir('manchete', spec.manchete, [spec.recorte.diretoria, ...usados]);
+  return erros;
+}
+
+/**
+ * Anotações que o gráfico consegue desenhar. Nos gráficos de série (todo o histórico até o fim do
+ * recorte, ver dadosDosGraficos) o mês da âncora precisa ser um ponto da série que a exibe; sem
+ * isso a anotação sai. No ranking a nota vai na barra da diretoria, e a anotação que nenhum
+ * gráfico do layout exibe fica (não há série a conferir).
+ */
+export function anotacoesDesenhaveis(spec: Pick<LayoutSpec, 'graficos' | 'anotacoes'>, dados: Readonly<Record<string, DadosGrafico>>): AnotacaoLayout[] {
+  return spec.anotacoes.filter(a => {
+    const series = spec.graficos.flatMap(g => {
+      const d = dados[chaveGrafico(g)];
+      return d && d.tipo !== 'ranking_diretorias' && d.diretoria === a.ancora.diretoria ? d.series.filter(s => s.indicador === a.ancora.indicador) : [];
+    });
+    return series.length === 0 || series.some(s => s.pontos.some(p => p.mes === a.ancora.periodo.fim));
+  });
+}
+
 /** Estrutura vem dos sinais; da IA só a escolha, a ordem e o texto */
 function montarSpec(recorte: RecorteLayout, e: EntradaIA, r: RespostaLayoutIA): LayoutSpec {
   const sinalDe = new Map(e.sinais.map(s => [s.ref, s.sinal]));
@@ -111,7 +169,13 @@ function montarSpec(recorte: RecorteLayout, e: EntradaIA, r: RespostaLayoutIA): 
     recorte,
     origem: 'ia',
     manchete: semPontoFinal(r.manchete),
-    cards: r.cards.map(c => ({ ...c, sinal: sinais.find(s => s.indicadores.includes(c.indicador))?.id ?? null })),
+    // o sinal do card: o da diretoria que o título cita, se houver; senão o primeiro do indicador
+    cards: r.cards.map(c => {
+      const doIndicador = sinais.filter(s => s.indicadores.includes(c.indicador));
+      const citadas = c.titulo ? diretoriasCitadas(c.titulo) : [];
+      const sinal = (citadas.length ? doIndicador.find(s => citadas.every(d => d === s.diretoria)) : undefined) ?? doIndicador[0];
+      return { ...c, sinal: sinal?.id ?? null };
+    }),
     graficos: r.graficos.map(g => ({ ...graficoDoSinal(sinalDe.get(g.sinal)!, recorte), titulo: g.titulo })),
     anotacoes: r.anotacoes.map(a => {
       const { ancora, sinal } = ancoraDe.get(a.ancora)!;
@@ -153,6 +217,7 @@ Regras:
 - Números em textos: só os que aparecem na evidência de um sinal ou no valor de uma âncora, escritos como estão lá. Na dúvida, escreva sem número. Datas como Jan/26 podem.
 - PT-BR, tom executivo e factual, sem adjetivos alarmistas, sem emojis.
 - Indicadores pelo nome do catálogo, sem abreviar nem traduzir.
+- Diretorias pelo nome completo, e cada texto cita só a diretoria do sinal que comenta (sinal da empresa: nenhuma). Título de card: a diretoria de um sinal do indicador, uma só.
 - manchete: 1 frase curta, sem ponto final (no máximo 12 palavras, até 90 caracteres), com a leitura principal para o público.
 - cards: 8 a 10 indicadores, sem repetir, em ordem de importância para o público; destaque "alto" em no máximo 3, "medio" nos que têm sinal, "normal" nos demais; titulo: frase narrativa curta (até 70 caracteres) ou null.
 - graficos: 2 ou 3 sinais que merecem gráfico, cada um com um título narrativo (até 70 caracteres).
@@ -230,6 +295,9 @@ export async function gerarLayout(recorte: RecorteLayout, opcoes: OpcoesGerador)
   if (errosResposta.length) return deterministico(`resposta fora do schema: ${errosResposta.slice(0, 3).join('; ')}`, uso, provedor);
   const spec = montarSpec(recorte, entrada, bruto as RespostaLayoutIA);
   const errosSpec = validarLayout(spec, sinais);
+  if (!errosSpec.length) errosSpec.push(...diretoriasForaDoSinal(spec, sinais));
   if (errosSpec.length) return deterministico(`spec rejeitado: ${errosSpec.slice(0, 3).join('; ')}`, uso, provedor);
-  return { spec, motivo: null, uso, provedor, latenciaMs: Date.now() - inicio };
+  const anotacoes = anotacoesDesenhaveis(spec, dadosDosGraficos(opcoes.motor, recorte, sinais));
+  if (anotacoes.length < spec.anotacoes.length) log(`[layout] ${chaveLayout(recorte)}: ${spec.anotacoes.length - anotacoes.length} anotação(ões) fora da série do gráfico descartada(s)`);
+  return { spec: { ...spec, anotacoes }, motivo: null, uso, provedor, latenciaMs: Date.now() - inicio };
 }
