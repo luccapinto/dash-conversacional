@@ -63,7 +63,21 @@ describe('perguntarAgente', () => {
       { tipo: 'fim', verificacao: { total: 1, verificados: 1, naoVerificados: [] } },
     ]));
     expect(final.narracao).toEqual(['Vou puxar a série.']);
-    expect(final.texto.trim()).toBe('**Set/26 fechou em 16,27% a.a.**');
+    expect(final.texto).toBe('**Set/26 fechou em 16,27% a.a.**');
+  });
+
+  it('análise inteira escrita na mesma rodada de `mostrar` continua sendo a resposta', async () => {
+    const analise = '**Set/26 fechou em 16,27% a.a.**\n\n## O que aconteceu\n- Tecnologia concentra as saídas.';
+    const { final } = await perguntar(sse([
+      { tipo: 'texto', delta: analise },
+      { tipo: 'passo', resultado: 'r9', ferramenta: 'mostrar', rotulo: 'Montando a visualização', estado: 'inicio' },
+      { tipo: 'passo', resultado: 'r9', ferramenta: 'mostrar', rotulo: 'Montando a visualização', estado: 'fim' },
+      { tipo: 'texto', delta: '\n\n' },
+      { tipo: 'texto', delta: 'Gráfico ao lado.' },
+      { tipo: 'fim', verificacao: { total: 1, verificados: 1, naoVerificados: [] } },
+    ]));
+    expect(final.narracao).toEqual([]);
+    expect(final.texto).toBe(`${analise}\n\nGráfico ao lado.`);
   });
 
   it('stream que termina sem `fim` é resposta interrompida (o texto parcial fica)', async () => {

@@ -48,12 +48,19 @@ export function aplicarEvento(t: Turno, e: EventoAgente): Turno {
       const passo: PassoTurno = { resultado: e.resultado, ferramenta: e.ferramenta, rotulo: e.rotulo, estado: e.estado };
       const i = t.passos.findIndex(p => p.resultado === e.resultado);
       const passos = i < 0 ? [...t.passos, passo] : t.passos.map((p, k) => (k === i ? passo : p));
-      // texto antes de uma rodada de tools é narração: a resposta começa depois da última rodada
-      if (e.estado === 'inicio' && t.texto.trim()) return { ...t, passos, narracao: [...t.narracao, t.texto.trim()], texto: '', estado: 'aguardando' };
+      // Frase curta antes de uma rodada de tools ("Vou puxar a série...": um parágrafo, sem título,
+      // lista ou tabela) é narração. Texto longo ou com estrutura é resposta: o modelo às vezes
+      // escreve a análise inteira e chama `mostrar` na mesma rodada; aí o texto fica e a rodada
+      // seguinte continua abaixo dele.
+      const previa = t.texto.trim();
+      if (e.estado === 'inicio' && previa && previa.length <= 240 && !previa.includes('\n')) return { ...t, passos, narracao: [...t.narracao, previa], texto: '', estado: 'aguardando' };
       return { ...t, passos };
     }
-    case 'texto':
-      return { ...t, texto: t.texto + e.delta, estado: 'transmitindo' };
+    case 'texto': {
+      // o separador de rodada ('\n\n') não abre a resposta
+      const texto = t.texto ? t.texto + e.delta : e.delta.trimStart();
+      return { ...t, texto, estado: texto ? 'transmitindo' : t.estado };
+    }
     case 'bloco':
       return t.blocos.some(b => b.id === e.bloco.id) ? t : { ...t, blocos: [...t.blocos, e.bloco] };
     case 'rastro':
