@@ -22,6 +22,13 @@ describe('montarPromptSistema', () => {
     expect(p).toMatch(/em atenção/);
   });
 
+  it('exige PT-BR em toda frase, inclusive na narração antes das ferramentas, com e sem deep dive', () => {
+    for (const p of [montarPromptSistema(), montarPromptSistema({ indicador: 'turnover', periodo: { inicio: '2025-10', fim: '2026-09' } })]) {
+      expect(p).toMatch(/toda frase em português do Brasil, inclusive a frase curta antes de chamar ferramentas/);
+      expect(p).toMatch(/Nunca escreva em inglês/);
+    }
+  });
+
   it('com contexto, fixa o recorte clicado, a lente e o roteiro de deep dive', () => {
     const p = montarPromptSistema({
       indicador: 'turnover_voluntario',
