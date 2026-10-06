@@ -57,7 +57,7 @@ O usuário clicou em "Investigar" no painel. Contexto:
 ${linhas.join('\n')}
 Use esse recorte como padrão nas ferramentas, a menos que a pergunta peça outro.
 Roteiro (um bloco curto por etapa, com o título em negrito; pule a etapa que não se aplica):
-1. **O que aconteceu**: valor no recorte contra a meta e a evolução na série.
+1. **O que aconteceu**: valor no recorte contra a meta (com o status calculado) e a evolução na série.
 2. **Onde se concentra**: decompor pelas dimensões mais prováveis (diretoria, senioridade, faixa salarial, tempo de casa…), lendo taxa e composição.
 3. **Por quê**: drivers (fatores de risco e de proteção) e antecedentes (sinais; eNPS, horas extras, vagas abertas).
 4. **Quanto custa**: impacto, quando o indicador tem custo.
@@ -86,6 +86,7 @@ export function montarPromptSistema(contexto?: ContextoDeepDive): string {
 - Amostra mínima de ${MIN_AMOSTRA}: segmento com amostraInsuficiente é frágil; não conclua a partir dele.
 - Drivers mostram associação (lift), não causa: fale em fator de risco ou de proteção.
 - Respeite a polaridade: em menor_melhor subir é piorar; em maior_melhor, o contrário.
+- Contra a meta, qualifique pelo status calculado do resultado de valor (status e statusTexto), nunca pela sua leitura dos números: dentro = "dentro da meta"; atencao = "acima da meta, em atenção" (ou "abaixo", em maior_melhor), nunca "dentro da meta", "na meta" ou "praticamente na meta"; fora = "fora da meta". Sem resultado de valor do recorte, chame valor antes de qualificar.
 
 ## Ferramentas
 - valor, serie, decompor, cruzar, comparar, drivers e impacto servem para qualquer indicador do catálogo; nem todo indicador aceita toda dimensão (o erro diz quais). sinais traz o que o detector automático achou num recorte. listarIndicadores dá a ficha (fórmula, dimensões).

@@ -128,6 +128,18 @@ function destaques(itens: Item[], unidade: Unidade) {
   };
 }
 
+/**
+ * O status calculado em palavras, com o lado da meta: a resposta qualifica o resultado por ele, não
+ * pela leitura dos números ("16,27 contra 16" é atenção, não "dentro da meta")
+ */
+function textoStatus({ status, valor, meta }: ResultadoValor): string {
+  if (status === 'atencao' || status === 'fora') {
+    const lado = valor! > meta! ? 'acima' : 'abaixo';
+    return status === 'atencao' ? `${lado} da meta, em atenção` : `fora da meta (${lado})`;
+  }
+  return { dentro: 'dentro da meta', sem_meta: 'sem meta', sem_dados: 'sem dados' }[status];
+}
+
 function resumoValor(id: string, d: ResultadoValor) {
   const ind = CATALOGO[d.indicador];
   const { filtros } = d.rastreio.parametros as { filtros?: Filtros };
@@ -144,6 +156,7 @@ function resumoValor(id: string, d: ResultadoValor) {
     unidade: d.unidade,
     meta: d.meta,
     status: d.status,
+    statusTexto: textoStatus(d),
     n: d.n,
     ...(eventos !== null ? { eventos } : {}),
     ...(d.meta !== null && d.valor !== null ? { distanciaDaMeta: arred(d.valor - d.meta), unidadeDistancia: unidadeDiferenca(d.unidade) } : {}),

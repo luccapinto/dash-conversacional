@@ -15,6 +15,13 @@ describe('montarPromptSistema', () => {
     expect(p).not.toMatch(/Deep dive em andamento/);
   });
 
+  it('manda qualificar o resultado contra a meta pelo status calculado (atenção não é "dentro da meta")', () => {
+    const p = montarPromptSistema();
+    expect(p).toMatch(/status calculado/);
+    expect(p).toMatch(/statusTexto/);
+    expect(p).toMatch(/em atenção/);
+  });
+
   it('com contexto, fixa o recorte clicado, a lente e o roteiro de deep dive', () => {
     const p = montarPromptSistema({
       indicador: 'turnover_voluntario',

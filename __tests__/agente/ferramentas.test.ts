@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { INDICADORES } from '@/lib/analytics/catalog';
 import { criarMotor } from '@/lib/analytics/engine';
 import { motorCliente } from '@/lib/analytics/cliente';
 import { ESQUEMAS_ARGUMENTOS } from '@/lib/analytics/schemas';
@@ -74,6 +75,29 @@ describe('execução', () => {
     expect(enps.valor as number).toBeGreaterThan(0);
     expect(enps).not.toHaveProperty('razaoMeta');
     expect(await resumo('gap_salarial_genero', 'Operações')).not.toHaveProperty('razaoMeta');
+  });
+
+  it('o status calculado vai em palavras, com o lado da meta: atenção nunca sai como "dentro da meta"', async () => {
+    const sessao = novaSessao();
+    const resumo = async (indicador: string, p: { inicio: string; fim: string }, diretoria?: string) =>
+      (await rodar(sessao, 'valor', { indicador, periodo: p, ...(diretoria ? { filtros: { diretoria } } : {}) })).paraModelo as Record<string, unknown>;
+
+    // Set/26: 16,27% a.a. contra meta de 16% (menor é melhor) → atenção, acima da meta
+    const set26 = await resumo('turnover_voluntario', { inicio: '2026-09', fim: '2026-09' });
+    expect(set26).toMatchObject({ status: 'atencao', statusTexto: 'acima da meta, em atenção' });
+
+    // todo indicador com meta, em vários recortes: o texto segue o status e o lado real do valor
+    const vistos = new Set<string>();
+    for (const diretoria of [undefined, 'Tecnologia', 'Operações', 'Financeiro & Risco']) {
+      for (const { id } of INDICADORES.filter(i => i.meta)) {
+        const r = await resumo(id, periodo, diretoria);
+        const lado = (r.valor as number) > (r.meta as number) ? 'acima' : 'abaixo';
+        const esperado = { dentro: 'dentro da meta', atencao: `${lado} da meta, em atenção`, fora: `fora da meta (${lado})`, sem_meta: 'sem meta', sem_dados: 'sem dados' }[r.status as string];
+        expect(r.statusTexto, `${id} · ${diretoria ?? 'Empresa'}`).toBe(esperado);
+        vistos.add(r.status as string);
+      }
+    }
+    expect([...vistos]).toEqual(expect.arrayContaining(['dentro', 'atencao', 'fora']));
   });
 
   it('sinais e catálogo respondem sem tocar no motor do roster', async () => {
