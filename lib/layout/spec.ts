@@ -4,16 +4,19 @@
  * de dados (âncoras) que o detector da fase 1 produziu; o único texto livre é narrativo (manchete,
  * títulos, anotações, perguntas) e todo número nele precisa estar nos sinais de entrada.
  *
- * Roda no client e no servidor: nada aqui chama a IA (ver gerador.ts).
+ * Roda no client e no servidor: nada aqui chama a IA (ver gerador.ts). Só indicadores visíveis do
+ * painel entram (lib/painel/indicadores.ts): sinais de entrada, cards, gráficos e âncoras.
  */
 
-import { IDS_INDICADORES, type IdIndicador } from '@/lib/analytics/catalog';
+import type { IdIndicador } from '@/lib/analytics/catalog';
 import { DIRETORIAS, MES_FIM, MESES, somarMeses, type Diretoria } from '@/lib/analytics/dominio';
 import type { MotorCliente, Periodo } from '@/lib/analytics/engine';
 import { validarEsquema, type JsonSchema } from '@/lib/analytics/schemas';
-import { detectarSinais, LENTES, type Lente, type PontoDado, type Sinal } from '@/lib/analytics/signals';
+import { LENTES, type Lente, type PontoDado, type Sinal } from '@/lib/analytics/signals';
 import { validarContexto, type ContextoDeepDive } from '@/lib/agente/contrato';
 import { coletarValores, verificarNumeros } from '@/lib/agente/guarda';
+import { IDS_PAINEL } from '@/lib/painel/indicadores';
+import { sinaisVisiveis } from '@/lib/painel/sinais';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -104,7 +107,7 @@ const PERIODO: JsonSchema = {
   required: ['inicio', 'fim'],
   additionalProperties: false,
 };
-const INDICADOR: JsonSchema = { type: 'string', enum: IDS_INDICADORES };
+const INDICADOR: JsonSchema = { type: 'string', enum: IDS_PAINEL };
 const DIRETORIA: JsonSchema = { type: ['string', 'null'], enum: [...DIRETORIAS, null] };
 const ID_SINAL: JsonSchema = { type: 'string', maxLength: 120 };
 const texto = (max: number): JsonSchema => ({ type: 'string', minLength: 3, maxLength: max });
@@ -133,11 +136,12 @@ export const ESQUEMA_LAYOUT_SPEC: JsonSchema = objeto({
 
 // ── Recortes padrão ───────────────────────────────────────────────────────────
 
-/** Períodos do filtro do painel, relativos a "hoje" (Set/2026) */
+/**
+ * Recortes pré-gerados: os 12 meses até o mês padrão do painel (Set/2026), que é a janela dos
+ * sinais e do resumo para o mês selecionado. Outros meses são gerados ao vivo por /api/layout.
+ */
 export const PERIODOS_PADRAO: readonly { id: string; rotulo: string; periodo: Periodo }[] = [
   { id: 'ultimos-12-meses', rotulo: 'Últimos 12 meses', periodo: { inicio: somarMeses(MES_FIM, -11), fim: MES_FIM } },
-  { id: 'ano-atual', rotulo: `${MES_FIM.slice(0, 4)} até agora`, periodo: { inicio: `${MES_FIM.slice(0, 4)}-01`, fim: MES_FIM } },
-  { id: 'ano-anterior', rotulo: String(Number(MES_FIM.slice(0, 4)) - 1), periodo: { inicio: `${Number(MES_FIM.slice(0, 4)) - 1}-01`, fim: `${Number(MES_FIM.slice(0, 4)) - 1}-12` } },
 ];
 
 export const COMBINACOES_PADRAO: readonly RecorteLayout[] = PERIODOS_PADRAO.flatMap(({ periodo }) =>
@@ -152,11 +156,12 @@ export function chaveLayout(r: RecorteLayout): string {
 export const MAX_SINAIS_LAYOUT = 12;
 
 /**
- * Os sinais de entrada do layout: os MAX_SINAIS_LAYOUT primeiros do detector. A IA vê exatamente
- * estes, o layout determinístico usa estes e a guarda de números só aceita números destes.
+ * Os sinais de entrada do layout: os MAX_SINAIS_LAYOUT primeiros do detector entre os de
+ * indicadores visíveis. A IA vê exatamente estes, o layout determinístico usa estes e a guarda de
+ * números só aceita números destes.
  */
 export function sinaisDoRecorte(motor: MotorCliente, r: RecorteLayout): Sinal[] {
-  return detectarSinais(motor, { periodo: r.periodo, diretoria: r.diretoria ?? undefined, lente: r.lente }).slice(0, MAX_SINAIS_LAYOUT);
+  return sinaisVisiveis(motor, r.periodo, r.diretoria, r.lente).slice(0, MAX_SINAIS_LAYOUT);
 }
 
 // ── Sinais → estrutura (compartilhado pelo layout determinístico e pelo da IA) ──

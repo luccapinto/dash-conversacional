@@ -10,13 +10,14 @@
  * números, aqui bloqueante).
  */
 
-import { INDICADORES, IDS_INDICADORES, CATALOGO, type IdIndicador } from '@/lib/analytics/catalog';
+import { CATALOGO, type IdIndicador } from '@/lib/analytics/catalog';
 import type { MotorCliente } from '@/lib/analytics/engine';
 import { validarEsquema, type JsonSchema } from '@/lib/analytics/schemas';
 import { formatar, type Sinal } from '@/lib/analytics/signals';
 import { chamarLLM, type NomeProvedor, type Provedor, type Uso } from '@/lib/agente/llm';
 import { DESCRICAO_LENTE } from '@/lib/agente/prompt';
 import { descreverRecorte } from '@/lib/agente/rotulos';
+import { IDS_PAINEL, INDICADORES_PAINEL } from '@/lib/painel/indicadores';
 import { layoutDeterministico } from './deterministico';
 import {
   ancorasDoSinal,
@@ -88,7 +89,7 @@ function esquemaResposta(e: EntradaIA): JsonSchema {
     manchete: texto(LIMITES_LAYOUT.manchete),
     cards: {
       type: 'array', minItems: LIMITES_LAYOUT.cards.min, maxItems: LIMITES_LAYOUT.cards.max,
-      items: obj({ indicador: { type: 'string', enum: IDS_INDICADORES }, destaque: { type: 'string', enum: DESTAQUES }, titulo: { type: ['string', 'null'], maxLength: LIMITES_LAYOUT.titulo } }),
+      items: obj({ indicador: { type: 'string', enum: IDS_PAINEL }, destaque: { type: 'string', enum: DESTAQUES }, titulo: { type: ['string', 'null'], maxLength: LIMITES_LAYOUT.titulo } }),
     },
     graficos: { type: 'array', minItems: 1, maxItems: LIMITES_LAYOUT.graficos.max, items: obj({ sinal: { type: 'string', enum: sinais }, titulo: texto(LIMITES_LAYOUT.titulo) }) },
     anotacoes: { type: 'array', maxItems: LIMITES_LAYOUT.anotacoes.max, items: obj({ ancora: { type: 'string', enum: ancoras }, texto: texto(LIMITES_LAYOUT.anotacao) }) },
@@ -160,7 +161,7 @@ Exemplo de JSON:
 ${JSON.stringify(EXEMPLO, null, 1)}`;
 
 function mensagemUsuario(recorte: RecorteLayout, e: EntradaIA): string {
-  const catalogo = INDICADORES.map(i => `${i.id} · ${i.nome} · ${i.polaridade}`).join('\n');
+  const catalogo = INDICADORES_PAINEL.map(i => `${i.id} · ${i.nome} · ${i.polaridade}`).join('\n');
   const sinais = e.sinais.map(({ ref, sinal: s, ancoras }) => {
     const ancorasTxt = ancoras.map(a => `${a.ref} = ${CATALOGO[a.ancora.indicador].nome} · ${a.ancora.diretoria ?? 'empresa'} · ${a.ancora.rotulo}${a.valorFormatado ? `: ${a.valorFormatado}` : ''}`).join(' | ');
     return `${ref} · ${s.tipo} · ${s.indicadores.join(' > ')} · ${s.diretoria ?? 'empresa'} · ${s.direcao}\n  evidência: ${s.evidencia}\n  âncoras: ${ancorasTxt || 'nenhuma'}`;

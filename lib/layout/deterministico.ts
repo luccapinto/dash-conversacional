@@ -4,9 +4,10 @@
  * Os únicos números dos textos vêm dos pontos dos sinais (formatados pelo detector).
  */
 
-import { CATALOGO, INDICADORES, type IdIndicador } from '@/lib/analytics/catalog';
+import { CATALOGO, type IdIndicador } from '@/lib/analytics/catalog';
 import { formatar, PESO_LENTE, type Sinal } from '@/lib/analytics/signals';
 import { descreverRecorte } from '@/lib/agente/rotulos';
+import { INDICADORES_PAINEL } from '@/lib/painel/indicadores';
 import {
   ancorasDoSinal,
   chaveLayout,
@@ -120,9 +121,9 @@ export function layoutDeterministico(recorte: RecorteLayout, sinais: readonly Si
       cards.push({ indicador: id, destaque: topo.has(s.id) ? 'alto' : 'medio', titulo: id === efeitoDe(s) ? tituloDoSinal(s) : null, sinal: s.id });
     }
   }
-  // completa com os domínios que mais pesam para o público, na ordem do catálogo
+  // completa com os domínios que mais pesam para o público, na ordem do catálogo (só visíveis)
   const peso = PESO_LENTE[recorte.lente];
-  const restantes = INDICADORES.map((ind, i) => ({ ind, i })).sort((a, b) => peso[b.ind.dominio] - peso[a.ind.dominio] || a.i - b.i);
+  const restantes = INDICADORES_PAINEL.map((ind, i) => ({ ind, i })).sort((a, b) => peso[b.ind.dominio] - peso[a.ind.dominio] || a.i - b.i);
   for (const { ind } of restantes) {
     if (cards.length >= N_CARDS) break;
     if (!temCard(ind.id)) cards.push({ indicador: ind.id, destaque: 'normal', titulo: null, sinal: null });
