@@ -9,7 +9,8 @@
  *
  * Para cada pergunta do roteiro (lib/demo/roteiro.ts) roda o `executarAgente` de verdade com o
  * provedor roteirizado (lib/demo/gravar.ts). A gravação falha se alguma ferramenta der erro, se o
- * número de blocos não bater ou se a guarda não conferir 100% dos números do texto. Saída:
+ * número de blocos não bater, se a guarda não conferir 100% dos números do texto, se o texto fizer
+ * conta por extenso (dobro, metade) ou se um bloco de pessoas tiver um único segmento suprimido. Saída:
  * public/demo/<id>.json (uma por resposta, baixada no clique) e lib/dados/cliente/demo.json (o
  * índice leve que entra no bundle). Mesmo roteiro, mesmos bytes.
  */

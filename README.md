@@ -12,7 +12,7 @@ São três áreas, todas com os filtros na URL (mês, diretoria, senioridade):
 - **Resumo executivo** (`/resumo`): a leitura da IA sobre os sinais que o motor detectou. Traz manchete, metas consolidadas, o resultado de cada meta com o motivo e os gráficos de destaque, em três lentes (CEO, CHRO, gestor).
 - **Indicador** (`/indicadores/[id]`): a ficha de cada indicador (pergunta, fórmula, meta), mês e acumulado, evolução de 24 meses, quebra por diretoria ou senioridade, os sinais detectados e um título escrito pela IA.
 
-O **deep dive com IA** abre numa gaveta à direita (no celular, numa folha de baixo para cima). O agente consulta o motor com ferramentas, narra cada consulta enquanto ela roda, escreve a análise em streaming e monta os gráficos a partir dos resultados. A barra de cima também aceita pergunta livre.
+O **deep dive com IA** abre numa gaveta à direita (no celular, numa folha de baixo para cima). O agente consulta o motor com ferramentas, narra cada consulta enquanto ela roda, escreve a análise em streaming e monta os gráficos a partir dos resultados. A barra de cima também aceita pergunta livre. Na versão publicada, o deep dive roda em [modo demonstração](#modo-demo-e-ia-ao-vivo), com respostas gravadas.
 
 | Resumo executivo | Indicador | Deep dive |
 |---|---|---|
@@ -42,29 +42,50 @@ A Verta S.A. é uma corretora de investimentos fictícia com cerca de 5 mil pess
 
 Arquitetura completa em [`docs/architecture.md`](docs/architecture.md).
 
+## Modo demo e IA ao vivo
+
+O app tem dois modos, decididos só no servidor pela variável `IA_AO_VIVO`:
+
+- **Demonstração (padrão, sem nenhuma variável):** nenhuma chamada de IA sai do servidor, mesmo com chaves no ambiente. `POST /api/agente` responde 403 `{"erro":"modo demonstração"}` sem montar provedor; `GET /api/layout` devolve o layout pré-gerado (`X-Layout-Fonte: pre-gerado`) ou, fora dele, o determinístico (`X-Layout-Fonte: demonstracao`). O painel da IA troca o campo de texto por perguntas prontas e toca respostas gravadas.
+- **IA ao vivo (`IA_AO_VIVO=1` e uma chave):** o agente responde qualquer pergunta e o resumo executivo gera layouts fora dos recortes pré-gerados.
+
+O modo chega ao navegador como prop do layout raiz, nunca por `NEXT_PUBLIC_*`.
+
+**As respostas gravadas** são 72: as 2 perguntas de cada um dos 25 indicadores (a primeira é o "O que influenciou" que o ✦ abre), as 8 histórias de [`docs/narrativa.md`](docs/narrativa.md) e as 14 perguntas do resumo executivo, cada uma com 1 ou 2 continuações. `npm run gravar-demo` roda o agente de verdade (`executarAgente`, ferramentas e motor) com um provedor roteirizado no lugar do modelo, sem rede e sem chave: o roteiro (`lib/demo/roteiro*.ts`) diz que ferramentas chamar e o texto final, e a gravação falha se uma ferramenta der erro ou se a guarda não conferir 100% dos números do texto. Cada resposta vai para `public/demo/<id>.json` (baixada no clique, até 14 KB) e o índice leve para `lib/dados/cliente/demo.json`. `__tests__/demo/gravacoes.test.ts` regrava tudo e compara com os arquivos versionados.
+
+**A animação** toca a gravação pelo mesmo `aplicarEvento` do stream ao vivo: de 1,5 a 3 s "pensando" (narração e passos, cada passo concluindo em 300 a 900 ms), os gráficos entrando um a um em 150 a 250 ms e o texto em pedaços de 1 a 3 palavras, de 50 a 70 caracteres por segundo, para a resposta inteira levar de 6 a 10 s. "Mostrar tudo" ou um clique na resposta completa na hora; trocar de pergunta cancela a que está tocando; com `prefers-reduced-motion` a resposta aparece inteira. A gravação é de um recorte fixo: com a tela filtrada, a resposta mostra o recorte gravado e avisa que não é o do filtro.
+
 ## Como rodar
 
 ```bash
 npm ci
-cp .env.example .env.local   # preencha DEEPSEEK_API_KEY
-npm run dev                  # http://localhost:3000
+npm run dev                  # http://localhost:3000, modo demonstração
+```
+
+Para a IA ao vivo:
+
+```bash
+cp .env.example .env.local   # IA_AO_VIVO=1 e DEEPSEEK_API_KEY
+npm run dev
 ```
 
 | Variável | Obrigatória | Para quê |
 |---|---|---|
-| `DEEPSEEK_API_KEY` | Sim, para a IA | Provedor principal do agente, dos layouts e dos títulos |
+| `IA_AO_VIVO` | Não | `1` liga a IA ao vivo; qualquer outro valor, ou nenhum, é demonstração |
+| `DEEPSEEK_API_KEY` | Sim, para a IA ao vivo | Provedor principal do agente, dos layouts e dos títulos |
 | `DEEPSEEK_MODEL` | Não | Padrão `deepseek-flash` |
 | `OPENROUTER_API_KEY` | Não | Reserva: usada só se a DeepSeek falhar (rede, 4xx/5xx, 429, timeout) |
 | `OPENROUTER_MODEL` | Não | Padrão `deepseek/deepseek-v4.1-flash` |
 | `NEXT_PUBLIC_APP_URL` | Não | URL pública, enviada ao OpenRouter como `HTTP-Referer` |
 
-Sem chave nenhuma, as telas usam os layouts e títulos pré-gerados (e o layout determinístico fora deles) e o deep dive responde 503. As chaves vivem só no servidor.
+Com `IA_AO_VIVO=1` e sem chave, as telas usam os layouts e títulos pré-gerados (e o layout determinístico fora deles) e o deep dive responde 503. As chaves vivem só no servidor.
 
 ## Scripts
 
 | Comando | O que faz |
 |---|---|
 | `npx tsx scripts/generate-data.ts` | Regera o dataset (roster, eventos e cubo). Mesma seed, mesmos bytes |
+| `npm run gravar-demo` | Regrava as respostas do modo demonstração (`public/demo`) e o índice (`lib/dados/cliente/demo.json`), sem rede e sem chave. `--so=id1,id2` regrava só essas |
 | `node --env-file=.env.local --import tsx scripts/generate-layouts.ts` | Pré-gera os 21 layouts do resumo executivo (empresa e 6 diretorias × 3 lentes). `--sem-ia` grava os determinísticos; `--limite=N` testa N sem gravar |
 | `node --env-file=.env.local --import tsx scripts/generate-destaques.ts` | Pré-gera os títulos da IA por indicador (empresa e cada diretoria) |
 | `node --env-file=.env.local --import tsx scripts/avaliar-agente.ts` | Avaliação real do agente com 20 perguntas: ferramentas chamadas, números conferidos, latência e custo. Gasta a chave, fica fora do CI |
@@ -77,9 +98,11 @@ JS da primeira carga por rota (gzip, `npm run orcamento` em 2026-10-06):
 
 | Rota | JS |
 |---|---|
-| `/` e `/indicadores/[id]` | 201,0 KB |
-| `/resumo` | 203,1 KB |
-| `/indicadores` e `/_not-found` | 195,9 KB |
+| `/` e `/indicadores/[id]` | 207,5 KB |
+| `/resumo` | 209,6 KB |
+| `/indicadores` e `/_not-found` | 202,9 KB |
+
+O índice das respostas gravadas (`lib/dados/cliente/demo.json`) tem 36,3 KB, 3,5 KB gzip; a maior resposta (`public/demo/turnover.json`) tem 13,8 KB, 3,3 KB gzip, e só é baixada no clique.
 
 Agente na avaliação de 20 perguntas (`scripts/avaliar-agente.ts`, DeepSeek, 2026-10-05):
 
@@ -88,15 +111,10 @@ Agente na avaliação de 20 perguntas (`scripts/avaliar-agente.ts`, DeepSeek, 20
 - Ferramenta esperada chamada em 20 de 20; guarda de números com 582 de 585 conferidos (99,4%).
 - Custo da rodada inteira: menos de US$ 0,05.
 
-Testes: 233 em 29 arquivos, cerca de 1 minuto com `--maxWorkers=1`, sem rede. O CI (`.github/workflows/ci.yml`) roda tipos, lint, testes, build e orçamento em todo push e pull request.
+Testes: 292 em 34 arquivos, cerca de 1,5 minuto com `--maxWorkers=1`, sem rede. O CI (`.github/workflows/ci.yml`) roda tipos, lint, testes, build e orçamento em todo push e pull request.
 
 ## Deploy (Vercel)
 
-O `vercel.json` usa o preset do Next.js com `npm run build`. Na Vercel, crie em Settings → Environment Variables:
+O `vercel.json` usa o preset do Next.js com `npm run build`. A versão publicada roda em modo demonstração e **não precisa de nenhuma variável de ambiente**. Recomendação: apague `DEEPSEEK_API_KEY` e `OPENROUTER_API_KEY` em Settings → Environment Variables. O modo demonstração já não as usa, mas sem elas um `IA_AO_VIVO=1` colocado por engano não tem como gastar crédito.
 
-- `DEEPSEEK_API_KEY` (obrigatória para a IA);
-- `DEEPSEEK_MODEL` (opcional);
-- `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` (reserva, opcionais);
-- `NEXT_PUBLIC_APP_URL` (opcional, URL de produção).
-
-As duas rotas de API rodam em Node.js. `/api/agente` tem `maxDuration = 120` (um deep dive típico leva de 8 a 13 s; acima de 120 s a plataforma corta o stream) e `/api/layout` tem `maxDuration = 60`. Com o Fluid Compute, padrão da Vercel, todo plano aceita esses valores: o Hobby vai até 300 s ([limites de duração](https://vercel.com/docs/functions/configuring-functions/duration#duration-limits)).
+Para publicar com a IA ao vivo, crie `IA_AO_VIVO=1` e `DEEPSEEK_API_KEY` (as demais da tabela acima são opcionais). As duas rotas de API rodam em Node.js. `/api/agente` tem `maxDuration = 120` (um deep dive típico leva de 8 a 13 s; acima de 120 s a plataforma corta o stream) e `/api/layout` tem `maxDuration = 60`. Com o Fluid Compute, padrão da Vercel, todo plano aceita esses valores: o Hobby vai até 300 s ([limites de duração](https://vercel.com/docs/functions/configuring-functions/duration#duration-limits)).

@@ -93,11 +93,16 @@ const CONTA_POR_EXTENSO = /\b(dobro|triplo|triplic\w*|qu[aá]drupl\w*|metade)\b/
 
 /**
  * Quebra de um indicador de pessoas com exatamente um segmento suprimido: com o total e os outros
- * segmentos à mostra, o suprimido sai por subtração (supressão complementar).
+ * segmentos à mostra, o suprimido sai por subtração (supressão complementar). Vale para `decompor`
+ * em barras ou em tabela (primeira coluna `segmento`), as duas com o total do recorte.
  */
 export function supressaoUnica(b: BlocoVisualizacao): boolean {
-  const itens: ReadonlyArray<{ valor: unknown; n: unknown }> = b.tipo === 'barras' ? b.barras : b.tipo === 'tabela' ? b.linhas : [];
-  return itens.length > 1 && itens.filter(i => i.valor === null && i.n === null).length === 1;
+  if (!CATALOGO[b.indicador].amostra.pessoas) return false;
+  const suprimidos =
+    b.tipo === 'barras' ? b.barras.map(x => x.valor === null && x.n === null)
+    : b.tipo === 'tabela' && b.colunas[0]?.chave === 'segmento' ? b.linhas.map(l => l.valor === null && l.n === null)
+    : [];
+  return suprimidos.length > 1 && suprimidos.filter(Boolean).length === 1;
 }
 
 export async function gravar(e: EntradaRoteiro, ambiente: AmbienteFerramentas): Promise<ResultadoGravacao> {
