@@ -46,6 +46,22 @@ describe('validarArgs', () => {
     }
   });
 
+  it('limita pontos da série e combinações do cruzar por consulta, com erro que diz como pedir menos', () => {
+    const tres = { inicio: '2023-10', fim: '2026-09' };
+    const mensal36 = validarArgs('serie', { indicador: 'turnover', periodo: tres });
+    expect(mensal36.ok).toBe(false);
+    if (!mensal36.ok) expect(mensal36.erros.join(' ')).toMatch(/36 pontos.*máximo é 24.*trimestre/);
+    expect(validarArgs('serie', { indicador: 'turnover', periodo: tres, granularidade: 'trimestre' }).ok).toBe(true);
+    expect(validarArgs('serie', { indicador: 'enps', periodo: tres }).ok).toBe(true); // eNPS: trimestral por padrão
+    expect(validarArgs('serie', { indicador: 'turnover', periodo: { inicio: '2024-10', fim: '2026-09' } }).ok).toBe(true);
+
+    const largo = validarArgs('cruzar', { indicador: 'turnover', periodo: tres, dimensoes: ['especialidade', 'faixaSalarial'] });
+    expect(largo.ok).toBe(false);
+    if (!largo.ok) expect(largo.erros.join(' ')).toMatch(/95 combinações.*máximo é 30.*diretoria/);
+    expect(validarArgs('cruzar', { indicador: 'turnover', periodo: tres, dimensoes: ['especialidade', 'faixaSalarial'], filtros: { diretoria: 'Tecnologia' } }).ok).toBe(true);
+    expect(validarArgs('cruzar', { indicador: 'turnover', periodo: tres, dimensoes: ['diretoria', 'senioridade'] }).ok).toBe(true);
+  });
+
   it('aponta o caminho de cada erro', () => {
     const r = validarArgs('valor', {
       indicador: 'rotatividade',

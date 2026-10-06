@@ -241,11 +241,10 @@ function resumoDecompor(id: string, d: ResultadoDecompor) {
   };
 }
 
-const MAX_CELULAS = 60;
-
 function resumoCruzar(id: string, d: ResultadoCruzar) {
   const { filtros } = d.rastreio.parametros as { filtros?: Filtros };
   const rotulo = (c: (typeof d.celulas)[number]) => d.dimensoes.map(x => c.segmento[x]).join(' · ');
+  // em ordem de amostra: se o teto cortar, ficam as maiores
   const celulas = [...d.celulas].sort((a, b) => (b.n ?? -1) - (a.n ?? -1));
   return {
     id,
@@ -255,7 +254,7 @@ function resumoCruzar(id: string, d: ResultadoCruzar) {
     recorte: descreverRecorte(d.rastreio.periodoEfetivo, filtros),
     unidade: d.unidade,
     total: totalDe(d.total),
-    celulas: celulas.slice(0, MAX_CELULAS).map(c => (c.suprimido
+    celulas: celulas.map(c => (c.suprimido
       ? { segmento: rotulo(c), valor: null, naoDivulgado: true }
       : {
         segmento: rotulo(c),
@@ -264,7 +263,6 @@ function resumoCruzar(id: string, d: ResultadoCruzar) {
         composicaoPct: pct(c.composicao),
         ...(c.amostraSuficiente ? {} : { amostraInsuficiente: true }),
       })),
-    ...(celulas.length > MAX_CELULAS ? { celulasOmitidas: celulas.length - MAX_CELULAS } : {}),
     destaques: destaques(d.celulas.filter(c => c.amostraSuficiente && c.valor !== null).map(c => ({ rotulo: rotulo(c), valor: c.valor! })), d.unidade),
     ...naoDivulgado([d.total, ...d.celulas]),
   };
@@ -340,6 +338,35 @@ function resumoMotor(funcao: NomeFuncao, id: string, dados: unknown) {
     case 'drivers': return resumoDrivers(id, dados as ResultadoDrivers);
     case 'impacto': return resumoImpacto(id, dados as ResultadoImpacto);
   }
+}
+
+// ── Teto do resultado ─────────────────────────────────────────────────────────
+
+/**
+ * Teto do que cada resultado manda ao modelo (bytes de JSON). Tudo volta no pedido seguinte, até
+ * 6 rodadas com várias tools cada: acima disso, a maior lista é cortada e o modelo é avisado de
+ * como pedir menos. As consultas comuns ficam bem abaixo (série de 24 meses ~1,5 KB, drivers e
+ * sinais ~3,5 KB); o que estoura é o catálogo inteiro (~19 KB).
+ */
+export const MAX_BYTES_RESULTADO = 5000;
+
+const PEDIR_MENOS =
+  'peça menos: um domínio ou indicador em listarIndicadores, período mais curto ou granularidade trimestre/ano em serie, uma diretoria ou dimensão com menos valores em decompor e cruzar';
+
+function caber(paraModelo: unknown): unknown {
+  const bytes = (x: unknown) => new TextEncoder().encode(JSON.stringify(x)).length;
+  if (!paraModelo || typeof paraModelo !== 'object' || bytes(paraModelo) <= MAX_BYTES_RESULTADO) return paraModelo;
+  const listas = Object.entries(paraModelo).filter((e): e is [string, unknown[]] => Array.isArray(e[1]));
+  if (listas.length === 0) return paraModelo;
+  const [campo, lista] = listas.reduce((a, b) => (bytes(b[1]) > bytes(a[1]) ? b : a));
+  const cortado = (mostrados: number) => ({
+    ...paraModelo,
+    [campo]: lista.slice(0, mostrados),
+    truncado: { campo, mostrados, total: lista.length, aviso: `resultado cortado em ${mostrados} de ${lista.length} itens de ${campo} para caber no teto; ${PEDIR_MENOS}` },
+  });
+  let n = lista.length;
+  while (n > 0 && bytes(cortado(n)) > MAX_BYTES_RESULTADO) n--;
+  return cortado(n);
 }
 
 // ── Sinais (cache por recorte: o detector percorre o catálogo inteiro) ─────────
@@ -540,7 +567,7 @@ export function criarSessao(amb: AmbienteFerramentas): SessaoFerramentas {
           throw new ErroConsulta(`Ferramenta desconhecida: "${p.ferramenta}". Ferramentas disponíveis: ${NOMES_FERRAMENTAS.join(', ')}.`);
         }
         const r = rodar(p.ferramenta as NomeFerramenta, p.args, p.id);
-        resultado = { ...base, ...r, ok: !r.erro, duracaoMs: Math.round(performance.now() - inicio) };
+        resultado = { ...base, ...r, paraModelo: caber(r.paraModelo), ok: !r.erro, duracaoMs: Math.round(performance.now() - inicio) };
       } catch (e) {
         const legivel = e instanceof ErroConsulta;
         if (!legivel) log(`[agente] erro interno em ${p.ferramenta}: ${e instanceof Error ? e.message : String(e)}`);

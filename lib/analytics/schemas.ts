@@ -6,7 +6,8 @@
  * O schema cobre forma e vocabulário (ids do catálogo, meses da janela, valores de cada
  * dimensão). Regras que dependem do indicador (ex.: "mulheres" não se decompõe por gênero,
  * o cubo do client só tem diretoria e senioridade) ficam no motor, que lança ErroConsulta
- * com a lista de dimensões válidas.
+ * com a lista de dimensões válidas. `validarArgs` ainda aplica o teto de linhas por consulta
+ * das tools (LIMITES_CONSULTA), que o subconjunto de JSON Schema não expressa.
  *
  * Sem dependência de schema: são ~7 objetos e um validador de ~50 linhas para o subconjunto
  * usado (type, enum, properties, required, additionalProperties, items, minItems, maxItems,
@@ -14,9 +15,9 @@
  * de deep dive, layout spec).
  */
 
-import { IDS_INDICADORES } from './catalog';
-import { MESES } from './dominio';
-import type { ArgsComparar, ArgsCruzar, ArgsDecompor, ArgsDrivers, ArgsImpacto, ArgsSerie, ArgsValor, NomeFuncao } from './engine';
+import { CATALOGO, IDS_INDICADORES } from './catalog';
+import { ESTRUTURA, MESES, type Diretoria } from './dominio';
+import { baldes, granularidadeDe, type ArgsComparar, type ArgsCruzar, type ArgsDecompor, type ArgsDrivers, type ArgsImpacto, type ArgsSerie, type ArgsValor, type NomeFuncao } from './engine';
 import { DESCRICAO_DIMENSAO, DIMENSOES, VALORES_DIMENSAO } from './fatos';
 
 export type TipoJson = 'object' | 'string' | 'array' | 'number' | 'integer' | 'boolean' | 'null';
@@ -75,10 +76,13 @@ function objeto(description: string, properties: Record<string, JsonSchema>, req
 
 const BASE = { indicador: INDICADOR, periodo: PERIODO, filtros: FILTROS };
 
+/** Teto de linhas por consulta das tools: série em pontos, cruzar em combinações */
+export const LIMITES_CONSULTA = { pontosSerie: 24, celulasCruzar: 30 } as const;
+
 export const ESQUEMAS_ARGUMENTOS: Record<NomeFuncao, JsonSchema> = {
   valor: objeto('Valor de um indicador num período e recorte, com status contra a meta e tamanho da amostra.', BASE, ['indicador', 'periodo']),
   serie: objeto(
-    'Série temporal de um indicador (mês, trimestre ou ano) num recorte.',
+    `Série temporal de um indicador (mês, trimestre ou ano) num recorte. Até ${LIMITES_CONSULTA.pontosSerie} pontos por consulta: para mais de ${LIMITES_CONSULTA.pontosSerie} meses, use trimestre ou ano.`,
     { ...BASE, granularidade: { type: 'string', enum: ['mes', 'trimestre', 'ano'], description: 'padrão: mês (eNPS: trimestre)' } },
     ['indicador', 'periodo'],
   ),
@@ -88,7 +92,7 @@ export const ESQUEMAS_ARGUMENTOS: Record<NomeFuncao, JsonSchema> = {
     ['indicador', 'periodo', 'dimensao'],
   ),
   cruzar: objeto(
-    'Valor do indicador em cada combinação de duas dimensões.',
+    `Valor do indicador em cada combinação de duas dimensões. Até ${LIMITES_CONSULTA.celulasCruzar} combinações por consulta: especialidade só com filtro de diretoria.`,
     { ...BASE, dimensoes: { type: 'array', items: DIMENSAO, minItems: 2, maxItems: 2, description: 'duas dimensões diferentes' } },
     ['indicador', 'periodo', 'dimensoes'],
   ),
@@ -169,7 +173,30 @@ export function validarEsquema(esquema: JsonSchema, valor: unknown): string[] {
   return erros;
 }
 
+/** Linhas que a consulta devolveria acima do teto das tools, com o jeito de pedir menos */
+function errosDeLimite(funcao: NomeFuncao, args: unknown): string[] {
+  if (funcao === 'serie') {
+    const { indicador, periodo, granularidade } = args as ArgsSerie;
+    const g = granularidadeDe(CATALOGO[indicador], granularidade);
+    const pontos = baldes(g, periodo).length;
+    const max = LIMITES_CONSULTA.pontosSerie;
+    if (pontos > max) return [`serie: ${pontos} pontos por ${g === 'mes' ? 'mês' : g}; o máximo é ${max} por consulta. Use granularidade trimestre ou ano, ou um período de até ${max} meses.`];
+  }
+  if (funcao === 'cruzar') {
+    const { dimensoes: [d1, d2], filtros } = args as ArgsCruzar;
+    const valores = (d: typeof d1) =>
+      d === 'especialidade' && filtros?.diretoria ? ESTRUTURA[filtros.diretoria as Diretoria].especialidades.length : VALORES_DIMENSAO[d].length;
+    const celulas = valores(d1) * valores(d2);
+    const max = LIMITES_CONSULTA.celulasCruzar;
+    if (celulas > max) {
+      return [`dimensoes: ${d1} × ${d2} dá até ${celulas} combinações; o máximo é ${max} por consulta. Filtre a diretoria (para cruzar especialidade), troque uma dimensão por outra com menos valores ou use decompor.`];
+    }
+  }
+  return [];
+}
+
 export function validarArgs<F extends NomeFuncao>(funcao: F, args: unknown): ResultadoValidacao<F> {
   const erros = validarEsquema(ESQUEMAS_ARGUMENTOS[funcao], args);
+  if (erros.length === 0) erros.push(...errosDeLimite(funcao, args));
   return erros.length === 0 ? { ok: true, args: args as ArgsPorFuncao[F] } : { ok: false, erros };
 }

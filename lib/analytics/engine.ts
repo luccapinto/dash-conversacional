@@ -310,7 +310,8 @@ function rotuloBalde(g: Granularidade, inicio: Mes): string {
   return `${Math.ceil(mesDoAno(inicio) / 3)}T${inicio.slice(2, 4)}`;
 }
 
-function baldes(g: Granularidade, p: Periodo): Periodo[] {
+/** Baldes da série (meses, trimestres ou anos) que cobrem o período */
+export function baldes(g: Granularidade, p: Periodo): Periodo[] {
   const out: Periodo[] = [];
   for (const m of intervaloMeses(p.inicio, p.fim)) {
     const chave = g === 'mes' ? m : g === 'ano' ? m.slice(0, 4) : `${m.slice(0, 4)}-${Math.ceil(mesDoAno(m) / 3)}`;
@@ -320,6 +321,11 @@ function baldes(g: Granularidade, p: Periodo): Periodo[] {
     else out.push({ inicio: m, fim: m });
   }
   return out;
+}
+
+/** Granularidade da série: a pedida ou a natural do indicador (eNPS, trimestral) */
+export function granularidadeDe(ind: Pick<Indicador, 'granularidade'>, pedida?: Granularidade): Granularidade {
+  return pedida ?? (ind.granularidade === 'trimestral' ? 'trimestre' : 'mes');
 }
 
 const UNIDADES_PERCENTUAIS: readonly Unidade[] = ['%', '% a.a.'];
@@ -453,7 +459,7 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
     serie({ indicador, periodo, filtros = {}, granularidade }) {
       const ind = indicadorDe(indicador);
       validarRecorte(ind, periodo, filtros);
-      const g: Granularidade = granularidade ?? (ind.granularidade === 'trimestral' ? 'trimestre' : 'mes');
+      const g = granularidadeDe(ind, granularidade);
       const porMes = new Map<Mes, Medidas>();
       for (const grupo of agregar(fonte, { inicio: periodo.inicio, fim: periodo.fim, filtros, agrupar: ['mes'], medidas: ind.medidas })) {
         porMes.set(grupo.chave.mes!, grupo.soma);

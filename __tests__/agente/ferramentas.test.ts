@@ -9,7 +9,7 @@ import { criarMotor } from '@/lib/analytics/engine';
 import { motorCliente } from '@/lib/analytics/cliente';
 import { ESQUEMAS_ARGUMENTOS } from '@/lib/analytics/schemas';
 import { NOMES_FERRAMENTAS } from '@/lib/agente/contrato';
-import { DEFINICOES_FERRAMENTAS, criarSessao, type SessaoFerramentas } from '@/lib/agente/ferramentas';
+import { DEFINICOES_FERRAMENTAS, MAX_BYTES_RESULTADO, criarSessao, type SessaoFerramentas } from '@/lib/agente/ferramentas';
 import type { ChamadaFerramenta } from '@/lib/agente/llm';
 import { cubo } from '../analytics/carregar';
 
@@ -109,6 +109,24 @@ describe('execução', () => {
     expect(lista.every(s => s.diretoria === 'Operações')).toBe(true);
     const catalogo = await rodar(sessao, 'listarIndicadores', { indicador: 'enps' });
     expect(catalogo.paraModelo).toMatchObject({ indicadores: [{ id: 'enps', meta: 20 }] });
+  });
+
+  it('resultado acima do teto de bytes vai ao modelo truncado, com aviso de como pedir menos', async () => {
+    const sessao = novaSessao();
+    const bytes = (x: unknown) => new TextEncoder().encode(JSON.stringify(x)).length;
+    const tudo = await rodar(sessao, 'listarIndicadores', {});
+    const m = tudo.paraModelo as { indicadores: unknown[]; truncado: { campo: string; mostrados: number; total: number; aviso: string } };
+    expect(bytes(m)).toBeLessThanOrEqual(MAX_BYTES_RESULTADO);
+    expect(m.truncado).toMatchObject({ campo: 'indicadores', total: INDICADORES.length });
+    expect(m.indicadores).toHaveLength(m.truncado.mostrados);
+    expect(m.truncado.mostrados).toBeLessThan(INDICADORES.length);
+    expect(m.truncado.aviso).toMatch(/peça menos.*domínio ou indicador/);
+    // o que cabe vai inteiro
+    const um = await rodar(sessao, 'listarIndicadores', { indicador: 'turnover' });
+    expect(um.paraModelo).not.toHaveProperty('truncado');
+    const cruzar = await rodar(sessao, 'cruzar', { indicador: 'turnover', periodo, dimensoes: ['diretoria', 'senioridade'] });
+    expect(cruzar.paraModelo).not.toHaveProperty('truncado');
+    expect((cruzar.paraModelo as { celulas: unknown[] }).celulas).toHaveLength(30);
   });
 });
 
