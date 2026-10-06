@@ -30,6 +30,8 @@ export interface Turno {
   verificacao: Verificacao | null;
   estado: EstadoTurno;
   erro: string | null;
+  /** modo demonstração: id da resposta gravada que o turno toca (public/demo/<id>.json) */
+  gravacao?: string;
 }
 
 /** Limite de caracteres por mensagem aceito pela rota (LIMITES_HISTORICO no servidor) */

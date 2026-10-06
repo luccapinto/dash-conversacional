@@ -9,8 +9,7 @@
  */
 
 import 'server-only';
-
-export type ModoIA = 'ao-vivo' | 'demonstracao';
+import type { ModoIA } from './contrato';
 
 export function modoIA(env: Record<string, string | undefined> = process.env): ModoIA {
   return env.IA_AO_VIVO === '1' ? 'ao-vivo' : 'demonstracao';

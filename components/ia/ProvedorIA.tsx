@@ -2,10 +2,12 @@
 
 /**
  * Provedor do painel da IA: uma loja por aba do navegador (vive no layout raiz, então as conversas
- * sobrevivem à navegação entre telas) e a gaveta/folha montada uma vez.
+ * sobrevivem à navegação entre telas) e a gaveta/folha montada uma vez. O modo (ao vivo ou
+ * demonstração) chega do servidor como prop: o navegador não lê variável de ambiente.
  */
 
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import type { ModoIA } from '@/lib/agente/contrato';
 import { LojaIA, type EstadoIA } from '@/lib/ia/loja';
 import type { SugestaoIA } from '@/lib/ia/pedidos';
 import { PainelIA } from './PainelIA';
@@ -23,8 +25,8 @@ export function useEstadoIA(): EstadoIA {
   return useSyncExternalStore(loja.assinar, loja.foto, loja.foto);
 }
 
-export function ProvedorIA({ children }: { children: ReactNode }) {
-  const [loja] = useState(() => new LojaIA());
+export function ProvedorIA({ modo, children }: { modo: ModoIA; children: ReactNode }) {
+  const [loja] = useState(() => new LojaIA({ modo }));
   return (
     <Contexto.Provider value={loja}>
       {children}

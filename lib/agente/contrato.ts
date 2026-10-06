@@ -17,6 +17,9 @@ import { DIMENSOES, VALORES_DIMENSAO, type Dimensao, type Filtros } from '@/lib/
 import { ESQUEMAS_ARGUMENTOS, validarEsquema, type JsonSchema } from '@/lib/analytics/schemas';
 import { LENTES, type Lente } from '@/lib/analytics/signals';
 
+/** `ao-vivo`: o agente chama o modelo. `demonstracao` (padrão): o painel toca respostas gravadas (lib/demo) */
+export type ModoIA = 'ao-vivo' | 'demonstracao';
+
 // ── Entrada ───────────────────────────────────────────────────────────────────
 
 export type DimensaoRecorte = Exclude<Dimensao, 'mes'>;

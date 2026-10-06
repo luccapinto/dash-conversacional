@@ -5,12 +5,17 @@
  * celular (~92dvh). Esc fecha, o foco fica preso dentro enquanto aberto e volta ao botão de origem.
  * Mostra os chips do contexto, os passos das tools em tempo real, o texto em streaming (Markdown),
  * os blocos de visualização, "Como calculei" e o selo da guarda de números.
+ *
+ * Modo demonstração: sem campo de texto; no lugar, as perguntas prontas da tela e, no fim de cada
+ * resposta, as continuações. Cada resposta mostra o recorte real da gravação; "Mostrar tudo" (ou
+ * um clique na resposta) completa a animação na hora.
  */
 
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { ItemRastro, Verificacao } from '@/lib/agente/contrato';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import type { ContextoDeepDive, ItemRastro, Verificacao } from '@/lib/agente/contrato';
+import { GRAVACOES, gravacaoDeOutroRecorte, perguntasProntas } from '@/lib/demo/indice';
 import type { Conversa, LojaIA } from '@/lib/ia/loja';
-import type { SugestaoIA } from '@/lib/ia/pedidos';
+import { pedidoDeContexto, type SugestaoIA } from '@/lib/ia/pedidos';
 import type { Turno } from '@/lib/ia/stream';
 import { rotuloIntervalo } from '@/lib/painel/periodos';
 import { BlocoIA } from './Blocos';
@@ -18,6 +23,11 @@ import { Markdown } from './Markdown';
 import { useEstadoIA, useLojaIA } from './ProvedorIA';
 
 const FOCAVEIS = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea, summary, [tabindex]:not([tabindex="-1"])';
+
+/** Seção do README que explica os dois modos (demonstração e IA ao vivo) */
+const README_MODOS = 'https://github.com/luccapinto/dash-conversacional#modo-demo-e-ia-ao-vivo';
+
+const ativo = (t: Turno | undefined) => t !== undefined && (t.estado === 'aguardando' || t.estado === 'transmitindo');
 
 export function PainelIA() {
   const loja = useLojaIA();
@@ -32,8 +42,9 @@ function Gaveta({ loja, conversa, sugestoes }: { loja: LojaIA; conversa: Convers
   const fio = useRef<HTMLDivElement>(null);
   const [texto, setTexto] = useState('');
   const ultimo = conversa.turnos.at(-1);
-  const ocupado = ultimo !== undefined && (ultimo.estado === 'aguardando' || ultimo.estado === 'transmitindo');
+  const ocupado = ativo(ultimo);
   const livre = !conversa.pedido.contexto;
+  const demo = loja.modo === 'demonstracao';
 
   useEffect(() => {
     const origem = loja.origem;
@@ -93,19 +104,29 @@ function Gaveta({ loja, conversa, sugestoes }: { loja: LojaIA; conversa: Convers
           <div>
             <b id="ia-titulo">{livre ? 'Pergunte à IA' : 'O que influenciou o resultado'}</b>
             <br />
-            <span>{livre ? 'Qualquer indicador; números calculados pelo motor' : 'Deep dive com números calculados pelo motor'}</span>
+            <span>{demo ? 'Respostas gravadas; números calculados pelo motor' : livre ? 'Qualquer indicador; números calculados pelo motor' : 'Deep dive com números calculados pelo motor'}</span>
           </div>
           <button type="button" className="icone-btn" aria-label="Fechar o painel da IA" onClick={() => loja.fechar()}>
             ×
           </button>
         </header>
+        {demo && (
+          <p className="demo-aviso">
+            Demonstração com respostas gravadas. Rodando localmente com uma chave de IA, o chat aceita qualquer pergunta.{' '}
+            <a href={README_MODOS} target="_blank" rel="noreferrer">
+              Como rodar
+            </a>
+          </p>
+        )}
         <div ref={fio} className="fio" aria-busy={ocupado}>
-          <div className="ctx">
-            {conversa.pedido.chips.map(c => (
-              <span key={c}>{c}</span>
-            ))}
-          </div>
-          {livre && conversa.turnos.length === 0 && (
+          {!demo && (
+            <div className="ctx">
+              {conversa.pedido.chips.map(c => (
+                <span key={c}>{c}</span>
+              ))}
+            </div>
+          )}
+          {!demo && livre && conversa.turnos.length === 0 && (
             <>
               <div className="aviso">Pergunte sobre qualquer indicador. A IA consulta o motor e cada número da resposta é conferido.</div>
               {sugestoes.length > 0 && (
@@ -119,26 +140,105 @@ function Gaveta({ loja, conversa, sugestoes }: { loja: LojaIA; conversa: Convers
               )}
             </>
           )}
-          {conversa.turnos.map((t, i) => (
-            <TurnoIA key={i} turno={t} ultimo={i === conversa.turnos.length - 1} aoRepetir={() => loja.tentarDeNovo()} />
-          ))}
+          {demo && conversa.turnos.length === 0 && <div className="aviso">Escolha uma pergunta pronta: a resposta gravada mostra como o agente consulta o motor e escreve a análise.</div>}
+          {conversa.turnos.map((t, i) =>
+            demo ? (
+              <TurnoDemo key={i} turno={t} ultimo={i === conversa.turnos.length - 1} tela={conversa.pedido.contexto} loja={loja} />
+            ) : (
+              <TurnoIA key={i} turno={t} ultimo={i === conversa.turnos.length - 1} aoRepetir={() => loja.tentarDeNovo()} />
+            ),
+          )}
         </div>
-        <form className="entrada" onSubmit={enviar}>
-          <input value={texto} onChange={e => setTexto(e.target.value)} placeholder={livre ? 'Ex.: onde o turnover voluntário mais subiu?' : 'Continue a investigação...'} aria-label="Pergunta para a IA" maxLength={1000} />
-          <button type="submit" disabled={ocupado || !texto.trim()}>
-            Perguntar
-          </button>
-        </form>
+        {demo ? (
+          <RodapeDemo loja={loja} conversa={conversa} ocupado={ocupado} />
+        ) : (
+          <form className="entrada" onSubmit={enviar}>
+            <input value={texto} onChange={e => setTexto(e.target.value)} placeholder={livre ? 'Ex.: onde o turnover voluntário mais subiu?' : 'Continue a investigação...'} aria-label="Pergunta para a IA" maxLength={1000} />
+            <button type="submit" disabled={ocupado || !texto.trim()}>
+              Perguntar
+            </button>
+          </form>
+        )}
       </aside>
     </>
   );
 }
 
-function TurnoIA({ turno: t, ultimo, aoRepetir }: { turno: Turno; ultimo: boolean; aoRepetir: () => void }) {
-  const marcar = t.verificacao?.naoVerificados.map(n => n.texto) ?? [];
+/** Perguntas prontas da tela (no lugar do campo de texto) e o "Mostrar tudo" enquanto uma resposta toca */
+function RodapeDemo({ loja, conversa, ocupado }: { loja: LojaIA; conversa: Conversa; ocupado: boolean }) {
+  const prontas = useMemo(() => perguntasProntas(conversa.pedido), [conversa.pedido]);
+  return (
+    <div className="rodape-demo">
+      <details className="prontas" open={conversa.turnos.length === 0}>
+        <summary>
+          Perguntas prontas <span>{prontas.length}</span>
+        </summary>
+        <div className="sugestoes">
+          {prontas.map(p => (
+            <button key={p.id} type="button" onClick={() => void loja.tocar(p.id)}>
+              {p.pergunta}
+            </button>
+          ))}
+        </div>
+      </details>
+      {ocupado && (
+        <button type="button" className="mostrar-tudo" onClick={() => loja.mostrarTudo()}>
+          Mostrar tudo
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Resposta gravada: o recorte real da gravação, a animação (clique completa) e as continuações */
+function TurnoDemo({ turno: t, ultimo, tela, loja }: { turno: Turno; ultimo: boolean; tela: ContextoDeepDive | undefined; loja: LojaIA }) {
+  const item = t.gravacao ? GRAVACOES.get(t.gravacao) : undefined;
+  const tocando = ativo(t);
+  const continuacoes = item?.continuacoes.flatMap(id => GRAVACOES.get(id) ?? []) ?? [];
   return (
     <>
       <div className="msg-u">{t.pergunta}</div>
+      {item && (
+        <div className="ctx">
+          {pedidoDeContexto(item.recorte, item.pergunta, item.nome).chips.map(c => (
+            <span key={c}>{c}</span>
+          ))}
+        </div>
+      )}
+      {item && gravacaoDeOutroRecorte(tela, item.recorte) && <p className="recorte-gravado">A demonstração tem respostas gravadas só para este recorte, não para o filtro da tela.</p>}
+      <div className={`corpo-turno ${tocando ? 'tocando' : ''}`} onClick={tocando ? () => loja.mostrarTudo() : undefined} title={tocando ? 'Clique para mostrar a resposta inteira' : undefined}>
+        <CorpoTurno turno={t} ultimo={ultimo} aoRepetir={() => loja.tentarDeNovo()} />
+      </div>
+      {ultimo && t.estado === 'concluido' && continuacoes.length > 0 && (
+        <div className="continuar">
+          <span>Continuar a investigação</span>
+          <div className="sugestoes">
+            {continuacoes.map(c => (
+              <button key={c.id} type="button" onClick={() => void loja.tocar(c.id)}>
+                {c.pergunta}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function TurnoIA({ turno: t, ultimo, aoRepetir }: { turno: Turno; ultimo: boolean; aoRepetir: () => void }) {
+  return (
+    <>
+      <div className="msg-u">{t.pergunta}</div>
+      <CorpoTurno turno={t} ultimo={ultimo} aoRepetir={aoRepetir} />
+    </>
+  );
+}
+
+/** Narração, passos das tools, texto (com cursor no ponto de escrita), blocos, rastro e selo */
+function CorpoTurno({ turno: t, ultimo, aoRepetir }: { turno: Turno; ultimo: boolean; aoRepetir: () => void }) {
+  const marcar = t.verificacao?.naoVerificados.map(n => n.texto) ?? [];
+  return (
+    <>
       {t.narracao.map((n, i) => (
         <p key={i} className="narracao">
           {n}
@@ -156,19 +256,14 @@ function TurnoIA({ turno: t, ultimo, aoRepetir }: { turno: Turno; ultimo: boolea
             </li>
           ))}
           {t.estado === 'aguardando' && t.passos.every(p => p.estado !== 'inicio') && (
-            <li>
-              <span className="rodando" aria-hidden="true" />
-              {t.passos.length ? 'Escrevendo a análise…' : 'Lendo o contexto e consultando o motor…'}
+            <li className="analisando">
+              <span className="pulsa" aria-hidden="true" />
+              {t.passos.length ? 'Escrevendo a análise…' : 'Analisando…'}
             </li>
           )}
         </ol>
       )}
-      {t.texto && (
-        <div>
-          <Markdown text={t.texto} marcar={marcar} />
-          {t.estado === 'transmitindo' && <span className="cursor" aria-hidden="true" />}
-        </div>
-      )}
+      {t.texto && <Markdown text={t.texto} marcar={marcar} escrevendo={t.estado === 'transmitindo'} />}
       {t.blocos.map(b => (
         <BlocoIA key={b.id} bloco={b} />
       ))}

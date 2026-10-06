@@ -37,7 +37,12 @@ const NOMES = Object.values(ESTRUTURA).flatMap(d => [d.diretor, ...d.especialida
 
 function chaves(x: unknown, saida: string[] = []): string[] {
   if (Array.isArray(x)) for (const v of x) chaves(v, saida);
-  else if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) saida.push(k), chaves(v, saida);
+  else if (x && typeof x === 'object') {
+    for (const [k, v] of Object.entries(x)) {
+      saida.push(k);
+      chaves(v, saida);
+    }
+  }
   return saida;
 }
 

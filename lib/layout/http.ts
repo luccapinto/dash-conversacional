@@ -17,7 +17,7 @@ import type { MotorCliente } from '@/lib/analytics/engine';
 import { LENTES, type Lente } from '@/lib/analytics/signals';
 import { criarLimitadorPorIp, MENSAGEM_LIMITE, mesmaOrigem, respostaJson, type OpcoesLimitador } from '@/lib/agente/http';
 import { custoEstimadoUsd, type Provedor, type Uso } from '@/lib/agente/llm';
-import type { ModoIA } from '@/lib/agente/modo';
+import type { ModoIA } from '@/lib/agente/contrato';
 import { layoutDeterministico } from './deterministico';
 import { gerarLayout, type ResultadoLayout } from './gerador';
 import { chaveLayout, sinaisDoRecorte, type LayoutSpec, type RecorteLayout } from './spec';

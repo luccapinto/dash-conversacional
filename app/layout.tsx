@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Instrument_Serif } from 'next/font/google';
+import { connection } from 'next/server';
+import { modoIA } from '@/lib/agente/modo';
 import { ProvedorIA } from '@/components/ia/ProvedorIA';
 import './globals.css';
 
@@ -29,14 +31,16 @@ export const viewport: Viewport = {
 // Tema antes da primeira pintura: ?tema=escuro|claro (links e prints) ou a escolha salva
 const TEMA = `(function(){try{var q=new URLSearchParams(location.search).get('tema');var t=q||localStorage.getItem('tema');if(t==='escuro'||t==='claro')document.documentElement.dataset.tema=t}catch(e){}})()`;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // o modo da IA é lido a cada pedido (IA_AO_VIVO no ambiente do servidor), nunca no build
+  await connection();
   return (
     <html lang="pt-BR" data-tema="claro" className={`${geist.variable} ${serifa.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: TEMA }} />
       </head>
       <body>
-        <ProvedorIA>{children}</ProvedorIA>
+        <ProvedorIA modo={modoIA()}>{children}</ProvedorIA>
       </body>
     </html>
   );
