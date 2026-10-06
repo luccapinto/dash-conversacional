@@ -183,7 +183,7 @@ export const ROTEIRO_HISTORIAS: EntradaRoteiro[] = [
       '- **Últimos 12 meses:** o efeito se inverteu: quem se movimentou saiu a 9,98% a.a., contra 7,62% de quem não se movimentou.',
       '- **Movimentação:** a mobilidade interna está em 13,2% a.a., dentro da meta de 6% (2,21 vezes a meta), e 37,6% das vagas são preenchidas por gente de dentro, dentro da meta de 25%.',
       '- **Turnover da diretoria:** 13,1% a.a., dentro da meta de 24%.',
-      '- **Fatores (janela inteira):** a mobilidade recente aparece entre os fatores de proteção (lift 0,54); o maior risco é estar no Q1 sem ter se movimentado (18,4% a.a., lift 2,05).',
+      '- **Fatores (janela inteira):** a mobilidade recente aparece entre os fatores de proteção (lift 0,54); o maior risco isolado é ser detrator no eNPS (lift 2,2), e estar no Q1 sem ter se movimentado chega a 18,4% a.a. (lift 2,05).',
       '- **O que fazer:** entender por que quem se movimentou no último ano voltou a sair antes de levar a rotação para outras diretorias.',
     ),
     continuacoes: ['mobilidade-interna-retencao', 'resumo-mobilidade-fr-replicar'],

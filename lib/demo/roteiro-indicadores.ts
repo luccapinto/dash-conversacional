@@ -232,7 +232,7 @@ export const ROTEIRO_INDICADORES: EntradaRoteiro[] = [
       '',
       '- **O que aconteceu:** subiu de 24,8% em Out/24 para 32,6% em Set/26, com pico de 46,9% em Jan/26.',
       '- **Onde se concentra:** Produtos & Plataforma tem 53,9% a.a., 4,93 vezes a taxa de Gente (10,9%), e 30,6% dessas saídas.',
-      '- **Fatores associados:** onboarding incompleto (67,2% a.a.) e avaliação abaixo do esperado (lift 1,98) são os maiores fatores de risco; eNPS promotor é fator de proteção (0,68).',
+      '- **Fatores associados:** entre os fatores isolados, onboarding incompleto (67,2% a.a.) e avaliação abaixo do esperado (lift 1,98) são os maiores riscos; somado a eNPS neutro, o onboarding incompleto chega a lift 2,42. eNPS promotor é fator de proteção (0,68).',
       '- **O que fazer:** tornar o onboarding completo obrigatório para toda contratação, começando por Produtos & Plataforma.',
     ),
     continuacoes: ['early-attrition-onboarding', 'historia-onboarding-produtos'],
