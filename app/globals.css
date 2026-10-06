@@ -279,6 +279,7 @@ body.ia-aberto { overflow: hidden; }
 .ctx { display: flex; flex-wrap: wrap; gap: 6px; }
 .ctx span { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line-2); color: var(--muted); }
 .msg-u { align-self: flex-end; max-width: 88%; background: var(--ink); color: var(--bg); padding: 9px 12px; border-radius: 12px 12px 2px 12px; font-size: 13px; }
+.narracao { font-size: 12.5px; color: var(--muted); font-style: italic; margin: 0; }
 .passos { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); list-style: none; }
 .passos li { display: flex; gap: 8px; align-items: center; }
 .passos .ok, .passos .rodando, .passos .falhou { width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; font-size: 9px; flex-shrink: 0; }
@@ -322,7 +323,7 @@ body.ia-aberto { overflow: hidden; }
 .bloco .kpi .v { font-size: 26px; font-weight: 500; letter-spacing: -.03em; }
 .bloco table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
 .bloco td, .bloco th { padding: 4px 6px; border-bottom: 1px solid var(--line-2); text-align: right; white-space: nowrap; }
-.bloco td:first-child, .bloco th:first-child { text-align: left; white-space: normal; }
+.bloco td:first-child, .bloco th:first-child { text-align: left; white-space: normal; min-width: 170px; }
 .bloco th { font-size: 10.5px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .05em; }
 .bloco .rolagem { overflow-x: auto; }
 .bloco .lados { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
@@ -391,7 +392,7 @@ body.ia-aberto { overflow: hidden; }
   /* indicador */
   .ind-layout { grid-template-columns: 1fr; gap: 0; }
   .lista { display: none; }
-  .chips-ind { display: flex; gap: 6px; overflow-x: auto; margin: -4px -16px 14px; padding: 0 16px 4px; scrollbar-width: none; }
+  .chips-ind { display: flex; gap: 6px; overflow-x: auto; margin: -4px -16px 14px; padding: 0 16px 4px; scrollbar-width: none; position: relative; }
   .chips-ind a { flex-shrink: 0; display: flex; gap: 6px; align-items: center; height: 30px; padding: 0 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 12.5px; white-space: nowrap; color: var(--ink-2); }
   .chips-ind a[aria-current="true"] { border-color: var(--ink); color: var(--ink); font-weight: 500; }
   .ind-cab { flex-direction: column; gap: 0; }
