@@ -1,103 +1,102 @@
-# Dashboard Conversacional — People Analytics com IA
+# Dashboard Conversacional · People Analytics com IA
 
-> "Dashboards precisam transicionar de repositórios de gráficos que o usuário interpreta para sistemas analíticos que entregam respostas."
+Um ensaio do data viz na era da IA: o painel mostra o que importa, a IA escolhe o destaque e investiga o porquê, e o código calcula cada número.
 
-Demo pública de dashboard executivo de turnover potencializado por IA (insights proativos + chat conversacional com function calling real). Projeto de posicionamento profissional — não um SaaS.
+![Painel gerencial da Verta S.A.](docs/img/gerencial.webp)
 
-## O que é
+## O que tem aqui
 
-Um dashboard que responde as **4 perguntas executivas** sobre turnover:
+São três áreas, todas com os filtros na URL (mês, diretoria, senioridade):
 
-1. **Como estamos?** → taxa atual vs. meta/benchmark
-2. **Qual a tendência?** → MoM e YoY
-3. **Para onde vamos?** → projeção se a tendência continuar
-4. **Onde está o problema?** → qual diretoria/faixa concentra o turnover
+- **Gerencial** (`/`): os 25 indicadores do painel, mês e acumulado do ano contra a meta, variação contra o mês anterior e contra o ano anterior, e a tendência de 12 meses. Cada linha tem um ✦ que abre o deep dive daquele indicador.
+- **Resumo executivo** (`/resumo`): a leitura da IA sobre os sinais que o motor detectou. Traz manchete, metas consolidadas, o resultado de cada meta com o motivo e os gráficos de destaque, em três lentes (CEO, CHRO, gestor).
+- **Indicador** (`/indicadores/[id]`): a ficha de cada indicador (pergunta, fórmula, meta), mês e acumulado, evolução de 24 meses, quebra por diretoria ou senioridade, os sinais detectados e um título escrito pela IA.
 
-E que vai além: um chat em linguagem natural onde o usuário pergunta e a IA responde com dados reais, rastreáveis e sem alucinação — usando function calling sobre funções de cálculo determinísticas.
+O **deep dive com IA** abre numa gaveta à direita (no celular, numa folha de baixo para cima). O agente consulta o motor com ferramentas, narra cada consulta enquanto ela roda, escreve a análise em streaming e monta os gráficos a partir dos resultados. A barra de cima também aceita pergunta livre.
+
+| Resumo executivo | Indicador | Deep dive |
+|---|---|---|
+| ![Resumo executivo](docs/img/resumo.webp) | ![Indicador](docs/img/indicador.webp) | ![Deep dive com IA](docs/img/deep-dive.webp) |
+
+## A IA decide a apresentação, o código decide os números
+
+Essa é a regra do projeto inteiro.
+
+- Todo número sai do motor determinístico (`lib/analytics/engine.ts`) sobre o catálogo de indicadores. O modelo nunca calcula: ele chama ferramentas (`valor`, `serie`, `decompor`, `cruzar`, `comparar`, `drivers`, `impacto`, `sinais`) e recebe resultados prontos, com o status contra a meta já calculado.
+- Os gráficos da resposta são montados pelo servidor a partir dos resultados das ferramentas. O modelo só escolhe qual resultado mostrar e em que formato.
+- A **guarda de números** (`lib/agente/guarda.ts`) confere cada número do texto contra os resultados da conversa. O selo no fim da resposta diz quantos bateram, e o que não bateu aparece marcado no texto.
+- **Como calculei** lista cada consulta ao motor com os argumentos, a fórmula, o período efetivo e o n.
+- Na camada adaptativa (resumo executivo e títulos dos indicadores) a guarda é bloqueante: layout com número que não está nos sinais é descartado e a tela usa o layout determinístico; título descartado não entra, e a página fica só com a frase determinística.
+
+## A Verta S.A. e as histórias dos dados
+
+A Verta S.A. é uma corretora de investimentos fictícia com cerca de 5 mil pessoas em 6 diretorias. Os dados são sintéticos e cobrem 36 meses (Out/2023 a Set/2026; "hoje" é Set/2026). O gerador simula pessoa a pessoa, mês a mês, com seed fixa, e as histórias nascem de mecanismos (fuga de talento em Tecnologia, pico de janeiro em Distribuição & Assessoria, eNPS que antecipa o turnover em Operações, teto de vidro, onboarding fraco em Produtos & Plataforma e mais). Cada história, com o indicador que a mostra e o deep dive que revela a causa, está em [`docs/narrativa.md`](docs/narrativa.md).
 
 ## Stack
 
-- **Framework:** Next.js 16 (App Router) + TypeScript
-- **Estilo:** Tailwind CSS v4 com design tokens executivos customizados
-- **Gráficos:** SVG próprio renderizado no servidor (sem biblioteca de gráficos no bundle)
-- **IA:** OpenRouter (modelo de raciocínio, default Claude 3.5 Sonnet) via serverless function — function calling com streaming real
-- **Deploy:** Vercel (deploy automático a cada push)
-- **Dados:** JSON estático gerado por script offline (sem banco de dados)
+- Next.js 16 (App Router, Turbopack) com React 19 e TypeScript; telas como server components.
+- CSS próprio sobre Tailwind CSS v4, fontes via `next/font`, gráficos em SVG próprio (sem biblioteca de gráficos).
+- IA: DeepSeek (API compatível com OpenAI) como principal e OpenRouter como reserva, chamados com `fetch` e SSE escritos à mão.
+- Dados: JSON gerado por script e versionado; sem banco.
+- Testes com Vitest, sem rede (o modelo é simulado com um `fetch` falso).
 
-## Rodar localmente
+Arquitetura completa em [`docs/architecture.md`](docs/architecture.md).
+
+## Como rodar
 
 ```bash
-# 1. Instalar dependências
-npm install
-
-# 2. Configurar variáveis de ambiente
-cp .env.example .env.local
-# Preencha OPENROUTER_API_KEY no .env.local
-
-# 3. Rodar em desenvolvimento
-npm run dev
+npm ci
+cp .env.example .env.local   # preencha DEEPSEEK_API_KEY
+npm run dev                  # http://localhost:3000
 ```
 
-Acesse `http://localhost:3000`.
-
-## Variáveis de ambiente
-
-| Variável | Obrigatória | Descrição |
+| Variável | Obrigatória | Para quê |
 |---|---|---|
-| `OPENROUTER_API_KEY` | Sim (chat) | Chave do OpenRouter — server-side only |
-| `OPENROUTER_MODEL` | Não | Modelo padrão: `anthropic/claude-3.5-sonnet` (use um modelo de raciocínio) |
-| `NEXT_PUBLIC_APP_URL` | Não | URL pública do app (HTTP-Referer) |
+| `DEEPSEEK_API_KEY` | Sim, para a IA | Provedor principal do agente, dos layouts e dos títulos |
+| `DEEPSEEK_MODEL` | Não | Padrão `deepseek-flash` |
+| `OPENROUTER_API_KEY` | Não | Reserva: usada só se a DeepSeek falhar (rede, 4xx/5xx, 429, timeout) |
+| `OPENROUTER_MODEL` | Não | Padrão `deepseek/deepseek-v4.1-flash` |
+| `NEXT_PUBLIC_APP_URL` | Não | URL pública, enviada ao OpenRouter como `HTTP-Referer` |
 
-**Segurança:** a API key nunca aparece no código nem é enviada ao client bundle. Vive exclusivamente em variável de ambiente server-side.
+Sem chave nenhuma, as telas usam os layouts e títulos pré-gerados (e o layout determinístico fora deles) e o deep dive responde 503. As chaves vivem só no servidor.
 
-## Regenerar o dataset
+## Scripts
 
-```bash
-# Gerar dados sintéticos (seed fixa — reprodutível)
-npx tsx scripts/generate-data.ts
-
-# Regenerar layouts e títulos da IA pré-gerados (requer DEEPSEEK_API_KEY ou OPENROUTER_API_KEY)
-node --env-file=.env.local --import tsx scripts/generate-layouts.ts
-node --env-file=.env.local --import tsx scripts/generate-destaques.ts
-```
-
-O script de dados é determinístico: rodar com a mesma seed produz exatamente os mesmos JSONs.
-
-## Arquitetura
-
-Ver [`docs/architecture.md`](docs/architecture.md) para o ADR completo com o fluxo de dados ponta a ponta.
-
-## Estrutura de pastas
-
-```
-app/
-  api/agente/     # Agente com tools sobre o motor (SSE)
-  api/layout/     # Layout spec do recorte (pré-gerado ou ao vivo)
-  page.tsx        # Aba Gerencial; resumo/ e indicadores/[id]/ são as outras telas
-lib/
-  analytics/      # Catálogo, motor (cubo no client, roster no servidor) e detector de sinais
-  agente/         # Contratos, tools, guarda de números e rota do agente
-  layout/         # Layout spec, determinístico e gerador pela IA
-  painel/         # Modelos de vista das telas (filtros, janelas, formatação)
-  ia/             # Cliente SSE e estado do painel da IA
-  dados/          # Cubo, layouts e títulos (client/servidor) gerados pelos scripts
-components/
-  painel/ ia/ graficos/  # Telas, painel da IA e gráficos SVG
-scripts/
-  generate-data.ts       # Gera o dataset sintético
-  generate-layouts.ts    # Layouts pré-gerados pela IA
-  generate-destaques.ts  # Títulos da IA por indicador
-  orcamento.ts           # Orçamento de JS por rota (npm run orcamento)
-```
-
-## Milestones
-
-| Milestone | Status |
+| Comando | O que faz |
 |---|---|
-| M1 — Fundação Técnica & Deploy Pipeline | Done |
-| M2 — Dataset Sintético & Narrativa de Negócio | Em andamento |
-| M3 — Camada Semântica & Funções de Cálculo | Pendente |
-| M4 — Dashboard Executivo (Camada Visual) | Pendente |
-| M5 — IA Proativa (Insights Pré-gerados) | Pendente |
-| M6 — Chat Conversacional (Function Calling Real) | Pendente |
-| M7 — Publicação, Domínio & Polimento Final | Pendente |
+| `npx tsx scripts/generate-data.ts` | Regera o dataset (roster, eventos e cubo). Mesma seed, mesmos bytes |
+| `node --env-file=.env.local --import tsx scripts/generate-layouts.ts` | Pré-gera os 21 layouts do resumo executivo (empresa e 6 diretorias × 3 lentes). `--sem-ia` grava os determinísticos; `--limite=N` testa N sem gravar |
+| `node --env-file=.env.local --import tsx scripts/generate-destaques.ts` | Pré-gera os títulos da IA por indicador (empresa e cada diretoria) |
+| `node --env-file=.env.local --import tsx scripts/avaliar-agente.ts` | Avaliação real do agente com 20 perguntas: ferramentas chamadas, números conferidos, latência e custo. Gasta a chave, fica fora do CI |
+| `npm run orcamento` | JS da primeira carga (gzip) por rota depois do `npm run build`; falha acima de 400 KB |
+| `npm test` · `npm run lint` · `npx next typegen && npx tsc --noEmit` | Testes, lint e tipos (o `typegen` gera os tipos das rotas, que não são versionados) |
+
+## Números medidos
+
+JS da primeira carga por rota (gzip, `npm run orcamento` em 2026-10-06):
+
+| Rota | JS |
+|---|---|
+| `/` e `/indicadores/[id]` | 201,0 KB |
+| `/resumo` | 203,1 KB |
+| `/indicadores` e `/_not-found` | 195,9 KB |
+
+Agente na avaliação de 20 perguntas (`scripts/avaliar-agente.ts`, DeepSeek, 2026-10-05):
+
+- Primeiro texto na tela: mediana 1,2 s, p90 2,6 s.
+- Resposta completa: mediana 8,4 s, p90 11,2 s, máximo 11,4 s.
+- Ferramenta esperada chamada em 20 de 20; guarda de números com 582 de 585 conferidos (99,4%).
+- Custo da rodada inteira: menos de US$ 0,05.
+
+Testes: 233 em 29 arquivos, cerca de 1 minuto com `--maxWorkers=1`, sem rede. O CI (`.github/workflows/ci.yml`) roda tipos, lint, testes, build e orçamento em todo push e pull request.
+
+## Deploy (Vercel)
+
+O `vercel.json` usa o preset do Next.js com `npm run build`. Na Vercel, crie em Settings → Environment Variables:
+
+- `DEEPSEEK_API_KEY` (obrigatória para a IA);
+- `DEEPSEEK_MODEL` (opcional);
+- `OPENROUTER_API_KEY` e `OPENROUTER_MODEL` (reserva, opcionais);
+- `NEXT_PUBLIC_APP_URL` (opcional, URL de produção).
+
+As duas rotas de API rodam em Node.js. `/api/agente` tem `maxDuration = 120` (um deep dive típico leva de 8 a 13 s; acima de 120 s a plataforma corta o stream) e `/api/layout` tem `maxDuration = 60`. Com o Fluid Compute, padrão da Vercel, todo plano aceita esses valores: o Hobby vai até 300 s ([limites de duração](https://vercel.com/docs/functions/configuring-functions/duration#duration-limits)).
