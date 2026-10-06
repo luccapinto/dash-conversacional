@@ -93,11 +93,18 @@ export const LIMITES_LAYOUT = {
   graficos: { min: 0, max: 4 },
   anotacoes: { min: 0, max: 6 },
   deepDives: { min: 3, max: 5 },
-  manchete: 160,
+  /** 42px serifado em 24ch: 110 caracteres já são 4 linhas no resumo */
+  manchete: 110,
   titulo: 100,
   anotacao: 90,
   pergunta: 140,
 } as const;
+
+/** Tira o ponto final de um texto da IA sem cortar abreviação no fim ("18,5% a.a.", "+2 p.p.") */
+export function semPontoFinal(texto: string): string {
+  const t = texto.trim();
+  return /(?:^|[^\p{L}])\p{L}\.\p{L}\.$/u.test(t) ? t : t.replace(/\.$/, '');
+}
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 

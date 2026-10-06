@@ -21,6 +21,7 @@ import { IDS_PAINEL, INDICADORES_PAINEL } from '@/lib/painel/indicadores';
 import type { Leitura } from '@/lib/painel/leitura';
 import { periodoSinais } from '@/lib/painel/periodos';
 import { sinaisVisiveis } from '@/lib/painel/sinais';
+import { semPontoFinal } from './spec';
 
 const MAX_TOKENS = 2500;
 export const MAX_CARACTERES_TITULO = 80;
@@ -185,7 +186,7 @@ export async function gerarTitulos(diretoria: Diretoria | null, opcoes: OpcoesTi
   const conferir = (lista: RespostaTitulosIA['titulos']): TituloDescartado[] => {
     const fora: TituloDescartado[] = [];
     for (const { indicador, titulo: bruta } of lista) {
-      const titulo = bruta.trim().replace(/\.$/, '');
+      const titulo = semPontoFinal(bruta);
       const motivo = indicador in titulos ? 'repetido' : conferirTitulo(titulo, porId[indicador]);
       if (motivo) fora.push({ indicador, titulo, motivo });
       else titulos[indicador] = titulo;

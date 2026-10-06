@@ -27,6 +27,7 @@ import {
   graficoDoSinal,
   LIMITES_LAYOUT,
   sinaisDoRecorte,
+  semPontoFinal,
   validarLayout,
   valorDaAncora,
   type AncoraLayout,
@@ -109,7 +110,7 @@ function montarSpec(recorte: RecorteLayout, e: EntradaIA, r: RespostaLayoutIA): 
     chave: chaveLayout(recorte),
     recorte,
     origem: 'ia',
-    manchete: r.manchete,
+    manchete: semPontoFinal(r.manchete),
     cards: r.cards.map(c => ({ ...c, sinal: sinais.find(s => s.indicadores.includes(c.indicador))?.id ?? null })),
     graficos: r.graficos.map(g => ({ ...graficoDoSinal(sinalDe.get(g.sinal)!, recorte), titulo: g.titulo })),
     anotacoes: r.anotacoes.map(a => {
@@ -151,7 +152,8 @@ Regras:
 - Use só as referências dadas: ids do catálogo, sinais (s1, s2…) e âncoras (a1, a2…).
 - Números em textos: só os que aparecem na evidência de um sinal ou no valor de uma âncora, escritos como estão lá. Na dúvida, escreva sem número. Datas como Jan/26 podem.
 - PT-BR, tom executivo e factual, sem adjetivos alarmistas, sem emojis.
-- manchete: 1 frase curta (no máximo 15 palavras, até 100 caracteres) com a leitura principal para o público.
+- Indicadores pelo nome do catálogo, sem abreviar nem traduzir.
+- manchete: 1 frase curta, sem ponto final (no máximo 12 palavras, até 90 caracteres), com a leitura principal para o público.
 - cards: 8 a 10 indicadores, sem repetir, em ordem de importância para o público; destaque "alto" em no máximo 3, "medio" nos que têm sinal, "normal" nos demais; titulo: frase narrativa curta (até 70 caracteres) ou null.
 - graficos: 2 ou 3 sinais que merecem gráfico, cada um com um título narrativo (até 70 caracteres).
 - anotacoes: 2 a 4 âncoras com texto curto (até 70 caracteres) que explica o ponto.
