@@ -9,7 +9,7 @@
  * - Blocos: entram quando o passo que os gerou (`mostrar`) termina, um a cada 150–250 ms.
  * - Escrevendo: pedaços de 1–3 palavras, pausa maior em fim de frase e de parágrafo. A velocidade
  *   parte de 50–70 caracteres/s e acelera o necessário para a resposta inteira caber em 6–10 s
- *   (os textos gravados têm 420–870 caracteres; a mediana ao vivo é 7 s).
+ *   (os textos gravados têm 421–931 caracteres; a mediana ao vivo é 7 s).
  * - Rastro ("Como calculei") e selo da guarda (`fim`) no final.
  */
 

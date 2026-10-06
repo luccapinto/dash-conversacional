@@ -258,7 +258,8 @@ function CorpoTurno({ turno: t, ultimo, aoRepetir }: { turno: Turno; ultimo: boo
           {t.estado === 'aguardando' && t.passos.every(p => p.estado !== 'inicio') && (
             <li className="analisando">
               <span className="pulsa" aria-hidden="true" />
-              {t.passos.length ? 'Escrevendo a análise…' : 'Analisando…'}
+              {/* os blocos só chegam depois do `mostrar`, logo antes do texto: até lá é análise, inclusive entre rodadas */}
+              {t.blocos.length ? 'Escrevendo a análise…' : 'Analisando…'}
             </li>
           )}
         </ol>
