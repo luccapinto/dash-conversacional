@@ -87,5 +87,11 @@ describe('validarArgs', () => {
     expect(validarEsquema(esquema, { texto: 'manchete longa demais' })).toEqual(['texto: máximo de 10 caracteres']);
     expect(validarEsquema(esquema, { texto: 'ok' })).toEqual(['texto: mínimo de 3 caracteres']);
     expect(validarEsquema(esquema, { texto: 'manchete', itens: ['a', 'b', 'c'] })).toEqual(['itens: máximo de 2 itens']);
+
+    const anulavel: JsonSchema = { type: 'object', properties: { d: { type: ['string', 'null'], enum: ['a', null], maxLength: 1 } }, additionalProperties: false };
+    expect(validarEsquema(anulavel, { d: null })).toEqual([]);
+    expect(validarEsquema(anulavel, { d: 'a' })).toEqual([]);
+    expect(validarEsquema(anulavel, { d: 3 })).toEqual(['d: esperado string ou null, veio integer']);
+    expect(validarEsquema(anulavel, { d: 'b' })).toEqual(['d: "b" não é um valor aceito']);
   });
 });

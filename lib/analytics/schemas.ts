@@ -19,10 +19,13 @@ import { MESES } from './dominio';
 import type { ArgsComparar, ArgsCruzar, ArgsDecompor, ArgsDrivers, ArgsImpacto, ArgsSerie, ArgsValor, NomeFuncao } from './engine';
 import { DESCRICAO_DIMENSAO, DIMENSOES, VALORES_DIMENSAO } from './fatos';
 
+export type TipoJson = 'object' | 'string' | 'array' | 'number' | 'integer' | 'boolean' | 'null';
+
 export interface JsonSchema {
-  type?: 'object' | 'string' | 'array' | 'number' | 'integer' | 'boolean';
+  /** um tipo ou uma união (ex.: ['string', 'null']) */
+  type?: TipoJson | readonly TipoJson[];
   description?: string;
-  enum?: readonly (string | number)[];
+  enum?: readonly (string | number | null)[];
   properties?: Record<string, JsonSchema>;
   required?: readonly string[];
   additionalProperties?: boolean;
@@ -126,19 +129,19 @@ function tipoDe(v: unknown): string {
 
 function validar(esquema: JsonSchema, valor: unknown, caminho: string, erros: string[]): void {
   const onde = caminho || '(raiz)';
+  const t = tipoDe(valor);
   if (esquema.type) {
-    const t = tipoDe(valor);
-    const ok = t === esquema.type || (esquema.type === 'number' && t === 'integer');
-    if (!ok) {
-      erros.push(`${onde}: esperado ${esquema.type}, veio ${t}`);
+    const aceitos: readonly TipoJson[] = typeof esquema.type === 'string' ? [esquema.type] : esquema.type;
+    if (!aceitos.includes(t as TipoJson) && !(t === 'integer' && aceitos.includes('number'))) {
+      erros.push(`${onde}: esperado ${aceitos.join(' ou ')}, veio ${t}`);
       return;
     }
   }
-  if (esquema.enum && !esquema.enum.includes(valor as string | number)) {
+  if (esquema.enum && !esquema.enum.includes(valor as string | number | null)) {
     erros.push(`${onde}: "${String(valor)}" não é um valor aceito`);
     return;
   }
-  if (esquema.type === 'object') {
+  if (t === 'object') {
     const obj = valor as Record<string, unknown>;
     for (const r of esquema.required ?? []) if (obj[r] === undefined) erros.push(`${caminho ? `${caminho}.` : ''}${r}: obrigatório`);
     for (const [k, v] of Object.entries(obj)) {
@@ -147,13 +150,11 @@ function validar(esquema: JsonSchema, valor: unknown, caminho: string, erros: st
       if (filho) validar(filho, v, sub, erros);
       else if (esquema.additionalProperties === false) erros.push(`${sub}: propriedade não permitida`);
     }
-  }
-  if (esquema.type === 'string') {
+  } else if (t === 'string') {
     const s = valor as string;
     if (esquema.minLength !== undefined && s.length < esquema.minLength) erros.push(`${onde}: mínimo de ${esquema.minLength} caracteres`);
     if (esquema.maxLength !== undefined && s.length > esquema.maxLength) erros.push(`${onde}: máximo de ${esquema.maxLength} caracteres`);
-  }
-  if (esquema.type === 'array') {
+  } else if (t === 'array') {
     const arr = valor as unknown[];
     if (esquema.minItems !== undefined && arr.length < esquema.minItems) erros.push(`${onde}: mínimo de ${esquema.minItems} itens`);
     if (esquema.maxItems !== undefined && arr.length > esquema.maxItems) erros.push(`${onde}: máximo de ${esquema.maxItems} itens`);
