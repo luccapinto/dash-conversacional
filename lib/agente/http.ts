@@ -146,7 +146,11 @@ export function criarHandlerAgente(config: () => ConfigAgente, limite: OpcoesLim
             `tokens ${m.uso.entrada}/${m.uso.cacheEntrada} cache/${m.uso.saida} · 1º texto ${m.latenciaPrimeiroTextoMs ?? '-'} ms · total ${m.latenciaTotalMs} ms · ` +
             `números ${m.verificacao ? `${m.verificacao.verificados}/${m.verificacao.total}` : '-'}`,
         );
-        if (aberto) controller.close();
+        try {
+          controller.close();
+        } catch {
+          // o cliente já cancelou o stream
+        }
       },
     });
     return new Response(stream, {
