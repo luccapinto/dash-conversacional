@@ -28,6 +28,11 @@ describe('extrairNumeros', () => {
     ].join('\n');
     expect(extrairNumeros(texto).map(n => n.texto)).toEqual(['8%', '+5']);
   });
+
+  it('só meses inteiros são datas: palavras que começam como um mês não escondem o número seguinte', () => {
+    const texto = 'mais de 30%, maior 25%, outros 45 casos, novos 120 contratados, dezenas de 18,5 p.p.; janeiro de 2026, set 2026 e mar. 25 não contam.';
+    expect(extrairNumeros(texto).map(n => n.texto)).toEqual(['30%', '25%', '45', '120', '18,5 p.p.']);
+  });
 });
 
 describe('verificarNumeros', () => {

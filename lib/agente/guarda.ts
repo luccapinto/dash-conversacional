@@ -22,7 +22,8 @@ export interface NumeroNoTexto {
   tolerancia: number;
 }
 
-const MESES_PT = '(?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*\\.?';
+/** Mês inteiro (abreviado ou por extenso): "mais", "outros", "novos" não são meses */
+const MESES_PT = String.raw`(?:jan(?:eiro)?|fev(?:ereiro)?|mar(?:ço)?|abr(?:il)?|mai(?:o)?|jun(?:ho)?|jul(?:ho)?|ago(?:sto)?|set(?:embro)?|out(?:ubro)?|nov(?:embro)?|dez(?:embro)?)\.?(?!\p{L})`;
 /** Trechos que não são medidas: trocados por espaços antes da leitura (mantêm as posições) */
 const IGNORAR = [
   new RegExp(`\\b${MESES_PT}\\s?(?:\\/|de\\s|\\s)\\s?\\d{2,4}\\b`, 'giu'), // Jan/26, janeiro de 2026, set 2026
