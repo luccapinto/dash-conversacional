@@ -180,10 +180,19 @@ export interface ColunaTabela {
   formato: 'texto' | 'valor' | 'n' | 'fracao' | 'lift';
 }
 
+/** Seção da tabela: `linhas` consecutivas, das quais só as `visiveis` primeiras aparecem até o leitor pedir todas */
+export interface GrupoTabela {
+  rotulo: string;
+  linhas: number;
+  visiveis: number;
+}
+
 export interface BlocoTabela extends BlocoBase {
   tipo: 'tabela';
   colunas: ColunaTabela[];
   linhas: Record<string, string | number | null>[];
+  /** seções que cobrem as linhas em ordem (ex.: risco e proteção); sem grupos, a tabela mostra tudo */
+  grupos?: GrupoTabela[];
 }
 
 export interface LadoComparacao {

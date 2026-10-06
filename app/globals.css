@@ -328,6 +328,9 @@ body.ia-aberto { overflow: hidden; }
 .bloco td:first-child { min-width: 100px; }
 .bloco th { font-size: 10px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; white-space: normal; vertical-align: bottom; }
 .bloco .rolagem { overflow-x: auto; }
+.bloco tr.grupo th { text-align: left; color: var(--ink-2); font-weight: 600; padding-top: 10px; }
+.bloco .ver-todos { margin-top: 6px; font-size: 12px; font-weight: 500; color: var(--ia); }
+.bloco .ver-todos:hover { text-decoration: underline; }
 .bloco .lados { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
 .bloco .lados div { border: 1px solid var(--line-2); border-radius: 8px; padding: 8px; }
 .bloco .lados small { display: block; color: var(--muted); font-size: 11px; }

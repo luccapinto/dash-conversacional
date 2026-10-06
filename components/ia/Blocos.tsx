@@ -1,9 +1,12 @@
+'use client';
+
 /**
  * Blocos de visualização que o servidor monta a partir dos resultados das tools (kpi, série,
  * barras, tabela, comparação). Todo número aqui veio do motor; o modelo só escolheu o resultado.
  */
 
-import type { BlocoVisualizacao, ColunaTabela } from '@/lib/agente/contrato';
+import { useState } from 'react';
+import type { BlocoTabela, BlocoVisualizacao, ColunaTabela } from '@/lib/agente/contrato';
 import { br, curto, valorComUnidade } from '@/lib/painel/formato';
 import { BarrasH } from '@/components/graficos/BarrasH';
 import { Linha } from '@/components/graficos/Linha';
@@ -25,6 +28,42 @@ function celula(v: string | number | null | undefined, c: ColunaTabela, unidade:
     default:
       return String(v);
   }
+}
+
+/** Tabela com seções opcionais (ex.: risco e proteção); cada seção abre com as linhas mais fortes e "ver todos" mostra o resto */
+function Tabela({ b }: { b: BlocoTabela }) {
+  const [todas, setTodas] = useState(false);
+  const grupos = b.grupos ?? [{ rotulo: '', linhas: b.linhas.length, visiveis: b.linhas.length }];
+  const ocultas = grupos.reduce((s, g) => s + g.linhas - g.visiveis, 0);
+  const inicios = grupos.map((_, i) => grupos.slice(0, i).reduce((s, g) => s + g.linhas, 0));
+  return (
+    <>
+      <div className="rolagem">
+        <table>
+          <thead>
+            <tr>{b.colunas.map(c => <th key={c.chave} scope="col" className={c.formato === 'texto' ? 'txt' : undefined}>{c.rotulo}</th>)}</tr>
+          </thead>
+          {grupos.map((g, gi) => (
+            <tbody key={gi}>
+              {g.rotulo && (
+                <tr className="grupo">
+                  <th scope="rowgroup" colSpan={b.colunas.length}>{g.rotulo}</th>
+                </tr>
+              )}
+              {b.linhas.slice(inicios[gi], inicios[gi] + (todas ? g.linhas : g.visiveis)).map((l, i) => (
+                <tr key={i}>{b.colunas.map(c => <td key={c.chave} className={c.formato === 'texto' ? 'txt' : undefined}>{celula(l[c.chave], c, b.unidade)}</td>)}</tr>
+              ))}
+            </tbody>
+          ))}
+        </table>
+      </div>
+      {ocultas > 0 && (
+        <button type="button" className="ver-todos" aria-expanded={todas} onClick={() => setTodas(!todas)}>
+          {todas ? 'ver menos' : `ver todos (${b.linhas.length})`}
+        </button>
+      )}
+    </>
+  );
 }
 
 export function BlocoIA({ bloco: b }: { bloco: BlocoVisualizacao }) {
@@ -76,18 +115,7 @@ export function BlocoIA({ bloco: b }: { bloco: BlocoVisualizacao }) {
       return (
         <figure className="bloco">
           {cab}
-          <div className="rolagem">
-            <table>
-              <thead>
-                <tr>{b.colunas.map(c => <th key={c.chave} scope="col" className={c.formato === 'texto' ? 'txt' : undefined}>{c.rotulo}</th>)}</tr>
-              </thead>
-              <tbody>
-                {b.linhas.map((l, i) => (
-                  <tr key={i}>{b.colunas.map(c => <td key={c.chave} className={c.formato === 'texto' ? 'txt' : undefined}>{celula(l[c.chave], c, b.unidade)}</td>)}</tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Tabela b={b} />
         </figure>
       );
     case 'comparacao':

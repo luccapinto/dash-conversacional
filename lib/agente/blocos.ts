@@ -63,6 +63,10 @@ function hash(texto: string): string {
 
 const NOME_GRANULARIDADE = { mes: 'mês', trimestre: 'trimestre', ano: 'ano' } as const;
 
+/** Fatores que a tabela de drivers mostra antes de "ver todos": cabe na gaveta sem rolar demais */
+const VISIVEIS_RISCO = 5;
+const VISIVEIS_PROTECAO = 3;
+
 export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): BlocoVisualizacao {
   const tipos = TIPOS_POR_FERRAMENTA[r.ferramenta];
   if (!tipos) throw new ErroBloco(`${r.id} (${r.ferramenta}) não vira visualização.`);
@@ -169,22 +173,24 @@ export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): B
     }
     case 'drivers': {
       const d = r.dados as ResultadoDrivers;
-      const linhas = [
-        ...d.fatoresDeRisco.map(f => ({ f, tipo: 'risco' })),
-        ...d.fatoresProtetivos.map(f => ({ f, tipo: 'proteção' })),
-        ...d.combinacoes.map(f => ({ f, tipo: f.lift >= 1 ? 'combinação de risco' : 'combinação protetiva' })),
-      ].map(({ f, tipo: t }) => ({ fator: rotuloSegmento(f.segmento), tipo: t, valor: f.valor, lift: f.lift, eventos: f.eventos, n: f.n }));
+      // atributo sozinho ou combinação, do mais forte ao mais fraco: risco por lift decrescente, proteção crescente
+      const todos = [...d.fatoresDeRisco, ...d.fatoresProtetivos, ...d.combinacoes];
+      const risco = todos.filter(f => f.lift >= 1).sort((x, y) => y.lift - x.lift);
+      const protecao = todos.filter(f => f.lift < 1).sort((x, y) => x.lift - y.lift);
       return {
         ...base, tipo: 'tabela', titulo: `Fatores de risco e de proteção · ${ind.nome}`,
         colunas: [
           { chave: 'fator', rotulo: 'Fator', formato: 'texto' },
-          { chave: 'tipo', rotulo: 'Tipo', formato: 'texto' },
-          { chave: 'valor', rotulo: ind.nome, formato: 'valor' },
+          { chave: 'valor', rotulo: 'Taxa', formato: 'valor' },
           { chave: 'lift', rotulo: 'Lift', formato: 'lift' },
           { chave: 'eventos', rotulo: 'Eventos', formato: 'n' },
           { chave: 'n', rotulo: 'n', formato: 'n' },
         ],
-        linhas,
+        linhas: [...risco, ...protecao].map(f => ({ fator: rotuloSegmento(f.segmento), valor: f.valor, lift: f.lift, eventos: f.eventos, n: f.n })),
+        grupos: [
+          { rotulo: 'Risco', linhas: risco.length, visiveis: Math.min(VISIVEIS_RISCO, risco.length) },
+          { rotulo: 'Proteção', linhas: protecao.length, visiveis: Math.min(VISIVEIS_PROTECAO, protecao.length) },
+        ].filter(g => g.linhas > 0),
       };
     }
     default:
