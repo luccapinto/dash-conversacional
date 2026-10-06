@@ -7,6 +7,9 @@
  * Custo: só a mesma origem (403 fora dela, ver `mesmaOrigem`), limite por IP (429) e, por
  * instância, uma cota de gerações e um teto de custo estimado por janela. Cota estourada nunca é
  * erro HTTP: sai o layout determinístico (X-Layout-Fonte: cota), sem chamar a IA, e fica no log.
+ *
+ * Modo demonstração (padrão, ver lib/agente/modo.ts): nunca chama a IA. O pré-gerado sai como está
+ * e o resto sai do determinístico (X-Layout-Fonte: demonstracao).
  */
 
 import { DIRETORIAS, MESES, type Diretoria } from '@/lib/analytics/dominio';
@@ -14,12 +17,15 @@ import type { MotorCliente } from '@/lib/analytics/engine';
 import { LENTES, type Lente } from '@/lib/analytics/signals';
 import { criarLimitadorPorIp, MENSAGEM_LIMITE, mesmaOrigem, respostaJson, type OpcoesLimitador } from '@/lib/agente/http';
 import { custoEstimadoUsd, type Provedor, type Uso } from '@/lib/agente/llm';
+import type { ModoIA } from '@/lib/agente/modo';
 import { layoutDeterministico } from './deterministico';
 import { gerarLayout, type ResultadoLayout } from './gerador';
 import { chaveLayout, sinaisDoRecorte, type LayoutSpec, type RecorteLayout } from './spec';
 
 export interface ConfigLayout {
   motor: MotorCliente;
+  modo: ModoIA;
+  /** só no modo ao vivo (em demonstração a rota nem monta os provedores) */
   provedores: readonly Provedor[];
   /** layouts pré-gerados por chave */
   padrao: Readonly<Record<string, LayoutSpec>>;
@@ -84,7 +90,7 @@ export function lerRecorte(params: URLSearchParams): RecorteLido {
   return { ok: true, recorte: { periodo: { inicio, fim }, diretoria: diretoria as Diretoria | null, lente } };
 }
 
-function resposta(spec: LayoutSpec, fonte: 'pre-gerado' | 'cache' | 'gerado' | 'cota', cachear: boolean): Response {
+function resposta(spec: LayoutSpec, fonte: 'pre-gerado' | 'cache' | 'gerado' | 'cota' | 'demonstracao', cachear: boolean): Response {
   return new Response(JSON.stringify(spec), {
     headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cachear ? CACHE_CDN : 'no-store', 'X-Layout-Fonte': fonte },
   });
@@ -107,6 +113,8 @@ export function criarHandlerLayout(
     const chave = chaveLayout(lido.recorte);
     const pre = cfg.padrao[chave];
     if (pre) return resposta(pre, 'pre-gerado', true);
+    // demonstração: o determinístico é função do recorte, então pode ficar no cache da CDN
+    if (cfg.modo === 'demonstracao') return resposta(layoutDeterministico(lido.recorte, sinaisDoRecorte(cfg.motor, lido.recorte)), 'demonstracao', true);
 
     let geracao = cache.get(chave);
     const fonte = geracao ? 'cache' : 'gerado';

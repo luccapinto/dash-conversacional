@@ -11,17 +11,25 @@
  * O valor depende do fluid compute da Vercel, ligado por padrão neste projeto: com ele o plano
  * Hobby aceita até 300 s. Sem fluid compute o teto do Hobby é 60 s e o deploy recusa 120; quem
  * desligar precisa baixar maxDuration para 60.
+ *
+ * Modo demonstração (padrão, ver lib/agente/modo.ts): responde 403 na hora, sem ler o corpo, montar
+ * provedor nem chamar a IA. O painel toca as respostas gravadas em public/demo.
  */
 
 import { motorCliente } from '@/lib/analytics/cliente';
 import { motorServidor } from '@/lib/analytics/servidor';
-import { criarHandlerAgente } from '@/lib/agente/http';
+import { criarHandlerAgente, respostaJson } from '@/lib/agente/http';
 import { provedoresDoAmbiente } from '@/lib/agente/llm';
+import { modoIA } from '@/lib/agente/modo';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
-export const POST = criarHandlerAgente(() => ({
+const aoVivo = criarHandlerAgente(() => ({
   ambiente: { motor: motorServidor(), motorSinais: motorCliente },
   provedores: provedoresDoAmbiente(),
 }));
+
+export async function POST(req: Request): Promise<Response> {
+  return modoIA() === 'ao-vivo' ? aoVivo(req) : respostaJson(403, { erro: 'modo demonstração' });
+}

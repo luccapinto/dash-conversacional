@@ -22,7 +22,7 @@ const COTA_FOLGADA: CotaLayout = { geracoes: 1000, custoUsd: 1000, janelaMs: 3_6
 function handler(fila: RespostaFalsa[], limite = { limite: 100, janelaMs: 60_000 }, cota = COTA_FOLGADA) {
   const falso = fetchFalso(fila);
   const logs: string[] = [];
-  const h = criarHandlerLayout(() => ({ motor: motorCliente, provedores, padrao: LAYOUTS_PADRAO.layouts, fetch: falso.fetch, log: l => logs.push(l) }), limite, cota);
+  const h = criarHandlerLayout(() => ({ motor: motorCliente, modo: 'ao-vivo', provedores, padrao: LAYOUTS_PADRAO.layouts, fetch: falso.fetch, log: l => logs.push(l) }), limite, cota);
   return { h, pedidos: falso.pedidos, logs };
 }
 
