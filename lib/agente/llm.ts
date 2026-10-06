@@ -65,6 +65,14 @@ export interface Uso {
   raciocinio: number;
 }
 
+/** Preço de pico da DeepSeek por milhão de tokens (teto das estimativas de custo) */
+export const PRECO_PICO_USD_POR_M = { entrada: 0.3, cache: 0.006, saida: 1.2 } as const;
+
+export function custoEstimadoUsd(uso: Pick<Uso, 'entrada' | 'cacheEntrada' | 'saida'>): number {
+  const p = PRECO_PICO_USD_POR_M;
+  return ((uso.entrada - uso.cacheEntrada) * p.entrada + uso.cacheEntrada * p.cache + uso.saida * p.saida) / 1e6;
+}
+
 export interface Tentativa {
   provedor: NomeProvedor;
   ok: boolean;

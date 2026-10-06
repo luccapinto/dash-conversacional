@@ -19,10 +19,9 @@ import { construirFatos } from '../lib/analytics/fatos';
 import type { Eventos, Pessoa } from '../lib/analytics/dominio';
 import { executarAgente, type MetricasAgente } from '../lib/agente/agente';
 import type { BlocoVisualizacao, ContextoDeepDive, NomeFerramenta } from '../lib/agente/contrato';
-import { provedoresDoAmbiente } from '../lib/agente/llm';
+import { custoEstimadoUsd, provedoresDoAmbiente } from '../lib/agente/llm';
 
 const PERIODO = { inicio: '2025-10', fim: '2026-09' };
-const PRECO = { entrada: 0.3, cache: 0.006, saida: 1.2 };
 
 interface Caso {
   pergunta: string;
@@ -138,7 +137,7 @@ async function main() {
     (a, l) => ({ entrada: a.entrada + l.m.uso.entrada, cache: a.cache + l.m.uso.cacheEntrada, saida: a.saida + l.m.uso.saida, raciocinio: a.raciocinio + l.m.uso.raciocinio, v: a.v + (l.m.verificacao?.verificados ?? 0), t: a.t + (l.m.verificacao?.total ?? 0) }),
     { entrada: 0, cache: 0, saida: 0, raciocinio: 0, v: 0, t: 0 },
   );
-  const custo = ((tot.entrada - tot.cache) * PRECO.entrada + tot.cache * PRECO.cache + tot.saida * PRECO.saida) / 1e6;
+  const custo = custoEstimadoUsd({ entrada: tot.entrada, cacheEntrada: tot.cache, saida: tot.saida });
   const primeiros = linhas.map(l => l.m.latenciaPrimeiroTextoMs ?? l.m.latenciaTotalMs);
   const respostas = linhas.map(l => l.m.latenciaRespostaMs ?? l.m.latenciaTotalMs);
   const totais = linhas.map(l => l.m.latenciaTotalMs);

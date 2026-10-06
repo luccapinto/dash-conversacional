@@ -1,23 +1,29 @@
 /**
  * GET /api/layout: pré-gerado sem IA, recorte fora do padrão gerado ao vivo com cache em memória,
- * falha transitória da IA não fica no cache, parâmetros inválidos e rate limit.
+ * falha transitória da IA não fica no cache, parâmetros inválidos, rate limit, mesma origem e
+ * cota global (gerações e custo por janela) que cai no determinístico sem chamar a IA.
  */
 
 import { describe, expect, it } from 'vitest';
 import { motorCliente } from '@/lib/analytics/cliente';
 import { provedoresDoAmbiente } from '@/lib/agente/llm';
-import { criarHandlerLayout } from '@/lib/layout/http';
+import { criarHandlerLayout, type CotaLayout } from '@/lib/layout/http';
 import { LAYOUTS_PADRAO } from '@/lib/layout/padrao';
 import { chaveLayout, COMBINACOES_PADRAO, type LayoutSpec } from '@/lib/layout/spec';
 import { erroHttp, fetchFalso, texto, type RespostaFalsa } from '../agente/sse';
 
 const provedores = provedoresDoAmbiente({ DEEPSEEK_API_KEY: 'chave-ds-teste', OPENROUTER_API_KEY: 'chave-or-teste' });
-const get = (qs: string, ip = '9.9.9.9') => new Request(`http://localhost/api/layout?${qs}`, { headers: { 'x-forwarded-for': ip } });
+/** o fetch do próprio painel: mesmo host, com Referer (Referrer-Policy strict-origin-when-cross-origin) */
+const DO_PAINEL = { referer: 'http://localhost/resumo?mes=2026-03' };
+const get = (qs: string, ip = '9.9.9.9', cabecalhos: Record<string, string> = DO_PAINEL) =>
+  new Request(`http://localhost/api/layout?${qs}`, { headers: { 'x-forwarded-for': ip, host: 'localhost', ...cabecalhos } });
+const COTA_FOLGADA: CotaLayout = { geracoes: 1000, custoUsd: 1000, janelaMs: 3_600_000 };
 
-function handler(fila: RespostaFalsa[], limite = { limite: 100, janelaMs: 60_000 }) {
+function handler(fila: RespostaFalsa[], limite = { limite: 100, janelaMs: 60_000 }, cota = COTA_FOLGADA) {
   const falso = fetchFalso(fila);
-  const h = criarHandlerLayout(() => ({ motor: motorCliente, provedores, padrao: LAYOUTS_PADRAO.layouts, fetch: falso.fetch, log: () => {} }), limite);
-  return { h, pedidos: falso.pedidos };
+  const logs: string[] = [];
+  const h = criarHandlerLayout(() => ({ motor: motorCliente, provedores, padrao: LAYOUTS_PADRAO.layouts, fetch: falso.fetch, log: l => logs.push(l) }), limite, cota);
+  return { h, pedidos: falso.pedidos, logs };
 }
 
 describe('GET /api/layout', () => {
@@ -60,5 +66,44 @@ describe('GET /api/layout', () => {
     expect((await invalido.json()).detalhes).toEqual(['periodo: início depois do fim']);
     expect((await h(get('inicio=2025-10&fim=2026-09&diretoria=Marketing', '7.7.7.7'))).status).toBe(400);
     expect((await h(get('inicio=2025-10&fim=2026-09', '7.7.7.7'))).status).toBe(429);
+  });
+
+  it('403 para Origin ou Referer de outro domínio e sem nenhum dos dois, sem chamar a IA', async () => {
+    const { h, pedidos } = handler([texto('{}')]);
+    const qs = 'inicio=2025-04&fim=2026-03&diretoria=Gente';
+    expect((await h(get(qs, '1.1.1.1', { origin: 'https://outro.example' }))).status).toBe(403);
+    expect((await h(get(qs, '1.1.1.1', { referer: 'https://outro.example/pagina' }))).status).toBe(403);
+    expect((await h(get(qs, '1.1.1.1', {}))).status).toBe(403);
+    expect((await h(get(qs, '1.1.1.1', { origin: 'null' }))).status).toBe(403);
+    expect(pedidos).toHaveLength(0);
+    // o mesmo host passa, por Origin ou por Referer
+    expect((await h(get('inicio=2025-04&fim=2026-03&diretoria=Gente', '1.1.1.1', { origin: 'http://localhost' }))).status).toBe(200);
+  });
+
+  it('cota global de gerações estourada: determinístico, sem chamar a IA, e loga', async () => {
+    let agora = 0;
+    const { h, pedidos, logs } = handler([texto('não é json'), texto('não é json')], undefined, { geracoes: 1, custoUsd: 1000, janelaMs: 60_000, agora: () => agora });
+    expect((await h(get('inicio=2025-01&fim=2025-12'))).headers.get('x-layout-fonte')).toBe('gerado');
+    const barrado = await h(get('inicio=2025-02&fim=2026-01'));
+    expect(barrado.status).toBe(200);
+    expect(barrado.headers.get('x-layout-fonte')).toBe('cota');
+    expect(barrado.headers.get('cache-control')).toBe('no-store');
+    expect(((await barrado.json()) as LayoutSpec)).toMatchObject({ chave: '2025-02..2026-01|Geral|chro', origem: 'deterministico' });
+    expect(pedidos).toHaveLength(1);
+    expect(logs.some(l => /cota/.test(l))).toBe(true);
+    // janela nova: volta a gerar, e o recorte barrado não ficou no cache
+    agora = 60_001;
+    expect((await h(get('inicio=2025-02&fim=2026-01'))).headers.get('x-layout-fonte')).toBe('gerado');
+    expect(pedidos).toHaveLength(2);
+  });
+
+  it('teto de custo estourado: determinístico, sem chamar a IA', async () => {
+    // cada resposta falsa custa ~US$ 0,000125 (1.000 tokens de entrada, 800 em cache, 50 de saída)
+    const { h, pedidos } = handler([texto('não é json')], undefined, { geracoes: 1000, custoUsd: 0.0001, janelaMs: 60_000 });
+    await h(get('inicio=2025-01&fim=2025-12&lente=ceo'));
+    const barrado = await h(get('inicio=2025-02&fim=2026-01&lente=ceo'));
+    expect(barrado.headers.get('x-layout-fonte')).toBe('cota');
+    expect(((await barrado.json()) as LayoutSpec).origem).toBe('deterministico');
+    expect(pedidos).toHaveLength(1);
   });
 });

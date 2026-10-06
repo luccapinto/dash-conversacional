@@ -40,6 +40,25 @@ export function ipDe(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'local';
 }
 
+/**
+ * Mesma origem: `Origin` (ou, sem ele, `Referer`) precisa apontar para o host que recebeu o pedido.
+ * Sem nenhum dos dois, recusa. O fetch do próprio painel sempre manda Referer (Referrer-Policy
+ * strict-origin-when-cross-origin em next.config.ts), em qualquer domínio, inclusive o de preview;
+ * já um `<img src>` de outro site manda o domínio dele ou, com referrerpolicy="no-referrer", nada.
+ * Não barra cliente programado (que forja cabeçalho): isso é com o limite por IP e a cota.
+ */
+export function mesmaOrigem(req: Request): boolean {
+  const fonte = req.headers.get('origin') ?? req.headers.get('referer');
+  if (!fonte) return false;
+  let host: string;
+  try {
+    host = new URL(fonte).host;
+  } catch {
+    return false;
+  }
+  return host !== '' && [req.headers.get('x-forwarded-host')?.split(',')[0].trim(), req.headers.get('host'), new URL(req.url).host].includes(host);
+}
+
 export function respostaJson(status: number, corpo: unknown): Response {
   return new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 }

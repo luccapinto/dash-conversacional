@@ -18,14 +18,13 @@ import * as path from 'path';
 import { gzipSync } from 'zlib';
 import { motorCliente } from '../lib/analytics/cliente';
 import { DIRETORIAS } from '../lib/analytics/dominio';
-import { provedoresDoAmbiente } from '../lib/agente/llm';
+import { custoEstimadoUsd, provedoresDoAmbiente } from '../lib/agente/llm';
 import { gerarTitulos, type ResultadoTitulos } from '../lib/layout/titulos';
 import type { ArquivoDestaques } from '../lib/painel/destaques';
 import { IDS_PAINEL } from '../lib/painel/indicadores';
 
 const DESTINO = path.join(process.cwd(), 'lib/dados/cliente/destaques.json');
 const CONCORRENCIA = 3;
-const PRECO = { entrada: 0.3, cache: 0.006, saida: 1.2 };
 
 async function main() {
   const limite = Number(process.argv.find(a => a.startsWith('--limite='))?.split('=')[1] ?? 0);
@@ -50,7 +49,7 @@ async function main() {
   );
 
   const uso = resultados.reduce((s, r) => ({ entrada: s.entrada + (r.uso?.entrada ?? 0), cache: s.cache + (r.uso?.cacheEntrada ?? 0), saida: s.saida + (r.uso?.saida ?? 0) }), { entrada: 0, cache: 0, saida: 0 });
-  const custo = ((uso.entrada - uso.cache) * PRECO.entrada + uso.cache * PRECO.cache + uso.saida * PRECO.saida) / 1e6;
+  const custo = custoEstimadoUsd({ entrada: uso.entrada, cacheEntrada: uso.cache, saida: uso.saida });
   const aceitos = resultados.reduce((s, r) => s + Object.keys(r.titulos).length, 0);
   const descartados = resultados.flatMap(r => r.descartados.map(d => `${r.chave} · ${d.indicador}: "${d.titulo}" (${d.motivo})`));
 

@@ -10,22 +10,20 @@
  *   node --env-file=.env.local --import tsx scripts/generate-layouts.ts --limite=2 # amostra, não grava
  *   npx tsx scripts/generate-layouts.ts --sem-ia                                    # só determinístico
  *
- * Custo estimado com o preço de pico da DeepSeek (teto): entrada US$ 0,30/M (cache US$ 0,006/M),
- * saída US$ 1,20/M.
+ * Custo estimado com o preço de pico da DeepSeek (teto; PRECO_PICO_USD_POR_M em lib/agente/llm.ts).
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { gzipSync } from 'zlib';
 import { motorCliente } from '../lib/analytics/cliente';
-import { provedoresDoAmbiente } from '../lib/agente/llm';
+import { custoEstimadoUsd, provedoresDoAmbiente } from '../lib/agente/llm';
 import { gerarLayout, type ResultadoLayout } from '../lib/layout/gerador';
 import type { ArquivoLayouts } from '../lib/layout/padrao';
 import { chaveLayout, COMBINACOES_PADRAO } from '../lib/layout/spec';
 
 const DESTINO = path.join(process.cwd(), 'lib/dados/cliente/layouts.json');
 const CONCORRENCIA = 4;
-const PRECO = { entrada: 0.3, cache: 0.006, saida: 1.2 };
 
 async function main() {
   const semIa = process.argv.includes('--sem-ia');
@@ -52,7 +50,7 @@ async function main() {
   );
 
   const uso = resultados.reduce((s, r) => ({ entrada: s.entrada + (r.uso?.entrada ?? 0), cache: s.cache + (r.uso?.cacheEntrada ?? 0), saida: s.saida + (r.uso?.saida ?? 0) }), { entrada: 0, cache: 0, saida: 0 });
-  const custo = ((uso.entrada - uso.cache) * PRECO.entrada + uso.cache * PRECO.cache + uso.saida * PRECO.saida) / 1e6;
+  const custo = custoEstimadoUsd({ entrada: uso.entrada, cacheEntrada: uso.cache, saida: uso.saida });
   const ia = resultados.filter(r => r.spec.origem === 'ia').length;
   const motivos = resultados.filter(r => r.motivo).map(r => `${r.spec.chave}: ${r.motivo}`);
 
