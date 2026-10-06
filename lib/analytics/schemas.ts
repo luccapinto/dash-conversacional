@@ -9,7 +9,9 @@
  * com a lista de dimensões válidas.
  *
  * Sem dependência de schema: são ~7 objetos e um validador de ~50 linhas para o subconjunto
- * usado (type, enum, properties, required, additionalProperties, items, minItems, maxItems).
+ * usado (type, enum, properties, required, additionalProperties, items, minItems, maxItems,
+ * minLength, maxLength). `validarEsquema` aplica o mesmo validador a outros contratos (contexto
+ * de deep dive, layout spec).
  */
 
 import { IDS_INDICADORES } from './catalog';
@@ -27,6 +29,8 @@ export interface JsonSchema {
   items?: JsonSchema;
   minItems?: number;
   maxItems?: number;
+  minLength?: number;
+  maxLength?: number;
 }
 
 const DIMENSOES_RECORTE = DIMENSOES.filter(d => d !== 'mes');
@@ -144,6 +148,11 @@ function validar(esquema: JsonSchema, valor: unknown, caminho: string, erros: st
       else if (esquema.additionalProperties === false) erros.push(`${sub}: propriedade não permitida`);
     }
   }
+  if (esquema.type === 'string') {
+    const s = valor as string;
+    if (esquema.minLength !== undefined && s.length < esquema.minLength) erros.push(`${onde}: mínimo de ${esquema.minLength} caracteres`);
+    if (esquema.maxLength !== undefined && s.length > esquema.maxLength) erros.push(`${onde}: máximo de ${esquema.maxLength} caracteres`);
+  }
   if (esquema.type === 'array') {
     const arr = valor as unknown[];
     if (esquema.minItems !== undefined && arr.length < esquema.minItems) erros.push(`${onde}: mínimo de ${esquema.minItems} itens`);
@@ -152,8 +161,14 @@ function validar(esquema: JsonSchema, valor: unknown, caminho: string, erros: st
   }
 }
 
-export function validarArgs<F extends NomeFuncao>(funcao: F, args: unknown): ResultadoValidacao<F> {
+/** Erros de `valor` contra `esquema` (vazio = válido), com o caminho de cada erro */
+export function validarEsquema(esquema: JsonSchema, valor: unknown): string[] {
   const erros: string[] = [];
-  validar(ESQUEMAS_ARGUMENTOS[funcao], args, '', erros);
+  validar(esquema, valor, '', erros);
+  return erros;
+}
+
+export function validarArgs<F extends NomeFuncao>(funcao: F, args: unknown): ResultadoValidacao<F> {
+  const erros = validarEsquema(ESQUEMAS_ARGUMENTOS[funcao], args);
   return erros.length === 0 ? { ok: true, args: args as ArgsPorFuncao[F] } : { ok: false, erros };
 }

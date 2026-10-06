@@ -5,7 +5,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Motor } from '@/lib/analytics/engine';
-import { ESQUEMAS_ARGUMENTOS, validarArgs } from '@/lib/analytics/schemas';
+import { ESQUEMAS_ARGUMENTOS, validarArgs, validarEsquema, type JsonSchema } from '@/lib/analytics/schemas';
 import { motorServidor } from '@/lib/analytics/servidor';
 
 const periodo = { inicio: '2025-10', fim: '2026-09' };
@@ -74,5 +74,18 @@ describe('validarArgs', () => {
     if (!comparar.ok) expect(comparar.erros[0]).toMatch(/^b\.periodo:/);
     expect(validarArgs('valor', null).ok).toBe(false);
     expect(validarArgs('valor', 'turnover').ok).toBe(false);
+  });
+
+  it('validarEsquema aplica o mesmo subconjunto a esquemas de fora do motor, com limite de texto', () => {
+    const esquema: JsonSchema = {
+      type: 'object',
+      properties: { texto: { type: 'string', minLength: 3, maxLength: 10 }, itens: { type: 'array', items: { type: 'string' }, maxItems: 2 } },
+      required: ['texto'],
+      additionalProperties: false,
+    };
+    expect(validarEsquema(esquema, { texto: 'manchete', itens: ['a'] })).toEqual([]);
+    expect(validarEsquema(esquema, { texto: 'manchete longa demais' })).toEqual(['texto: máximo de 10 caracteres']);
+    expect(validarEsquema(esquema, { texto: 'ok' })).toEqual(['texto: mínimo de 3 caracteres']);
+    expect(validarEsquema(esquema, { texto: 'manchete', itens: ['a', 'b', 'c'] })).toEqual(['itens: máximo de 2 itens']);
   });
 });
