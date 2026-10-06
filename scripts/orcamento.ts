@@ -49,6 +49,10 @@ const linhas = manifestos(APP).map(caminho => {
   return { rota: `/${pasta}`, arquivos: arquivos.length, kb };
 });
 
+if (linhas.length === 0) {
+  console.error('Nenhuma rota encontrada em .next/server/app: build incompleto ou formato do manifesto mudou.');
+  process.exit(1);
+}
 linhas.sort((a, b) => a.rota.localeCompare(b.rota));
 const largura = Math.max(...linhas.map(l => l.rota.length));
 console.log(`JS da primeira carga (gzip), limite ${LIMITE_KB} KB por rota\n`);

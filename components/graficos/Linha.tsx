@@ -61,9 +61,9 @@ export function Linha({ pontos, unidade: u, meta, notas = [], compacto = false, 
           <text x={L + 2} y={Y(meta) - 5} fontSize="10" fill="var(--muted)">meta {valorComUnidade(meta, u)}</text>
         </g>
       )}
-      {/* rótulo no primeiro ponto de cada ano (Jan na série mensal, 1T na trimestral) e no último */}
+      {/* rótulo no primeiro ponto de cada ano (Jan na série mensal, 1T na trimestral), num primeiro ponto em Jan e no último */}
       {pontos.map((p, i) =>
-        i === n - 1 || (i > 0 && p.mes.slice(0, 4) !== pontos[i - 1].mes.slice(0, 4)) ? (
+        i === n - 1 || (i === 0 ? p.mes.endsWith('-01') : p.mes.slice(0, 4) !== pontos[i - 1].mes.slice(0, 4)) ? (
           <text key={p.mes} x={X(i)} y={h - 6} fontSize="10" fill="var(--muted)" textAnchor={i === n - 1 ? 'end' : 'middle'}>{p.rotulo}</text>
         ) : null,
       )}
