@@ -104,6 +104,7 @@ export const NOMES_FERRAMENTAS = [
   'sinais',
   'mostrar',
 ] as const;
+export type NomeFerramenta = (typeof NOMES_FERRAMENTAS)[number];
 
 // ── Blocos de visualização ────────────────────────────────────────────────────
 
