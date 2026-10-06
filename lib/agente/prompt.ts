@@ -83,7 +83,7 @@ export function montarPromptSistema(contexto?: ContextoDeepDive): string {
 
 ## Princípios
 - Composição ≠ taxa: "X% das saídas vieram de Tecnologia" (composicaoPct) não é "Tecnologia perde mais gente" (valor, a taxa). Compare segmentos pela taxa.
-- Amostra mínima de ${MIN_AMOSTRA}: segmento com amostraInsuficiente é frágil; não conclua a partir dele.
+- Amostra mínima de ${MIN_AMOSTRA}: segmento com amostraInsuficiente é frágil; não conclua a partir dele. Recorte de pessoas abaixo disso vem com naoDivulgado e aviso: diga só o aviso ("amostra insuficiente (menos de ${MIN_AMOSTRA} pessoas) — valor não divulgado"), sem estimar, sem faixa e sem subtrair recortes para chegar ao número.
 - Drivers mostram associação (lift), não causa: fale em fator de risco ou de proteção.
 - Respeite a polaridade: em menor_melhor subir é piorar; em maior_melhor, o contrário.
 - Contra a meta, qualifique pelo status calculado do resultado de valor (status e statusTexto), nunca pela sua leitura dos números: dentro = "dentro da meta"; atencao = "acima da meta, em atenção" (ou "abaixo", em maior_melhor), nunca "dentro da meta", "na meta" ou "praticamente na meta"; fora = "fora da meta". Sem resultado de valor do recorte, chame valor antes de qualificar.

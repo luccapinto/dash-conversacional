@@ -5,16 +5,18 @@
  */
 
 import { CATALOGO } from '@/lib/analytics/catalog';
-import type {
-  Periodo,
-  Rastreio,
-  ResultadoComparar,
-  ResultadoCruzar,
-  ResultadoDecompor,
-  ResultadoDrivers,
-  ResultadoImpacto,
-  ResultadoSerie,
-  ResultadoValor,
+import {
+  avisoSupressao,
+  type Periodo,
+  type Rastreio,
+  type ResultadoComparar,
+  type ResultadoCruzar,
+  type ResultadoDecompor,
+  type ResultadoDrivers,
+  type ResultadoImpacto,
+  type ResultadoSerie,
+  type ResultadoValor,
+  type Supressao,
 } from '@/lib/analytics/engine';
 import { DESCRICAO_DIMENSAO, type Filtros } from '@/lib/analytics/fatos';
 import type { BlocoVisualizacao, ColunaTabela, DimensaoRecorte, NomeFerramenta, TipoBloco } from './contrato';
@@ -67,6 +69,12 @@ const NOME_GRANULARIDADE = { mes: 'mês', trimestre: 'trimestre', ano: 'ano' } a
 const VISIVEIS_RISCO = 5;
 const VISIVEIS_PROTECAO = 3;
 
+/** Algum número do bloco não foi divulgado (recorte de pessoas abaixo do mínimo): a frase vai junto */
+function aviso(itens: ReadonlyArray<{ suprimido?: Supressao }>): { aviso?: string } {
+  const s = itens.find(i => i.suprimido)?.suprimido;
+  return s ? { aviso: avisoSupressao(s) } : {};
+}
+
 export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): BlocoVisualizacao {
   const tipos = TIPOS_POR_FERRAMENTA[r.ferramenta];
   if (!tipos) throw new ErroBloco(`${r.id} (${r.ferramenta}) não vira visualização.`);
@@ -90,14 +98,14 @@ export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): B
   switch (r.ferramenta) {
     case 'valor': {
       const d = r.dados as ResultadoValor;
-      return { ...base, tipo: 'kpi', titulo: ind.nome, valor: d.valor, meta: d.meta, status: d.status, n: d.n, amostraSuficiente: d.amostraSuficiente };
+      return { ...base, tipo: 'kpi', titulo: ind.nome, valor: d.valor, meta: d.meta, status: d.status, n: d.n, amostraSuficiente: d.amostraSuficiente, ...aviso([d]) };
     }
     case 'impacto': {
       const d = r.dados as ResultadoImpacto;
       if (!d.aplicavel) throw new ErroBloco(`${r.id}: "${ind.nome}" não tem custo associado.`);
       return {
         ...base, tipo: 'kpi', unidade: 'R$', titulo: `Custo estimado · ${ind.nome}`,
-        valor: d.valor, meta: null, status: null, n: rastreio.n, amostraSuficiente: rastreio.n >= rastreio.amostraMinima,
+        valor: d.valor, meta: null, status: null, n: rastreio.n, amostraSuficiente: rastreio.n !== null && rastreio.n >= rastreio.amostraMinima, ...aviso([d]),
       };
     }
     case 'serie': {
@@ -107,7 +115,7 @@ export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): B
       const subtitulo = descreverRecorte(periodo, filtros);
       if (tipo === 'tabela') {
         return {
-          ...base, tipo, titulo, subtitulo,
+          ...base, tipo, titulo, subtitulo, ...aviso(d.pontos),
           colunas: [
             { chave: 'periodo', rotulo: 'Período', formato: 'texto' },
             { chave: 'valor', rotulo: ind.nome, formato: 'valor' },
@@ -117,7 +125,7 @@ export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): B
         };
       }
       return {
-        ...base, tipo: 'serie', titulo, subtitulo, granularidade: d.granularidade, meta,
+        ...base, tipo: 'serie', titulo, subtitulo, granularidade: d.granularidade, meta, ...aviso(d.pontos),
         pontos: d.pontos.map(p => ({ rotulo: p.rotulo, periodo: p.periodo, valor: p.valor, n: p.n, amostraSuficiente: p.amostraSuficiente })),
       };
     }
@@ -127,7 +135,7 @@ export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): B
       const titulo = `${ind.nome} por ${DESCRICAO_DIMENSAO[dimensao]}`;
       if (tipo === 'tabela') {
         return {
-          ...base, tipo, titulo,
+          ...base, tipo, titulo, ...aviso([d.total, ...d.segmentos]),
           colunas: [
             { chave: 'segmento', rotulo: DESCRICAO_DIMENSAO[dimensao], formato: 'texto' },
             { chave: 'valor', rotulo: ind.nome, formato: 'valor' },
@@ -139,7 +147,7 @@ export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): B
         };
       }
       return {
-        ...base, tipo: 'barras', titulo, dimensao, total: d.total.valor, meta,
+        ...base, tipo: 'barras', titulo, dimensao, total: d.total.valor, meta, ...aviso([d.total, ...d.segmentos]),
         barras: d.segmentos.map(s => ({ rotulo: s.segmento, valor: s.valor, n: s.n, amostraSuficiente: s.amostraSuficiente, composicao: s.composicao })),
       };
     }
@@ -154,7 +162,7 @@ export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): B
         { chave: 'composicao', rotulo: 'Composição', formato: 'fracao' },
       ];
       return {
-        ...base, tipo: 'tabela', titulo: `${ind.nome} por ${DESCRICAO_DIMENSAO[d1]} e ${DESCRICAO_DIMENSAO[d2]}`, colunas,
+        ...base, tipo: 'tabela', titulo: `${ind.nome} por ${DESCRICAO_DIMENSAO[d1]} e ${DESCRICAO_DIMENSAO[d2]}`, colunas, ...aviso([d.total, ...d.celulas]),
         linhas: d.celulas.map(c => ({ [d1]: c.segmento[d1] ?? null, [d2]: c.segmento[d2] ?? null, valor: c.valor, n: c.n, composicao: c.composicao })),
       };
     }
@@ -167,7 +175,7 @@ export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): B
       const ladoA = lado(d.a, a);
       const ladoB = lado(d.b, b);
       return {
-        ...base, tipo: 'comparacao', titulo: `${ind.nome}: comparação`, subtitulo: `${ladoA.rotulo} × ${ladoB.rotulo}`,
+        ...base, tipo: 'comparacao', titulo: `${ind.nome}: comparação`, subtitulo: `${ladoA.rotulo} × ${ladoB.rotulo}`, ...aviso([d.a, d.b]),
         a: ladoA, b: ladoB, diferenca: d.diferenca, unidadeDiferenca: d.unidadeDiferenca, variacaoRelativa: d.variacaoRelativa, melhor: d.melhor,
       };
     }
@@ -178,7 +186,7 @@ export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): B
       const risco = todos.filter(f => f.lift >= 1).sort((x, y) => y.lift - x.lift);
       const protecao = todos.filter(f => f.lift < 1).sort((x, y) => x.lift - y.lift);
       return {
-        ...base, tipo: 'tabela', titulo: `Fatores de risco e de proteção · ${ind.nome}`,
+        ...base, tipo: 'tabela', titulo: `Fatores de risco e de proteção · ${ind.nome}`, ...aviso([d.total]),
         colunas: [
           { chave: 'fator', rotulo: 'Fator', formato: 'texto' },
           { chave: 'valor', rotulo: 'Taxa', formato: 'valor' },

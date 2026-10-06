@@ -71,6 +71,7 @@ export function BlocoIA({ bloco: b }: { bloco: BlocoVisualizacao }) {
     <>
       <h4>{b.titulo}</h4>
       <div className="sub">{b.subtitulo}</div>
+      {b.aviso && <div className="sub">{b.aviso}</div>}
     </>
   );
   switch (b.tipo) {
@@ -83,8 +84,8 @@ export function BlocoIA({ bloco: b }: { bloco: BlocoVisualizacao }) {
             {b.status && <span className={`pill ${b.status}`}>{ROTULO_STATUS[b.status]}</span>}
           </div>
           <div className="sub">
-            {b.meta !== null ? `meta ${valorComUnidade(b.meta, b.unidade)} · ` : ''}n = {br(b.n, 0)}
-            {!b.amostraSuficiente && ' · amostra pequena'}
+            {b.meta !== null ? `meta ${valorComUnidade(b.meta, b.unidade)}` : ''}
+            {b.n !== null && `${b.meta !== null ? ' · ' : ''}n = ${br(b.n, 0)}${b.amostraSuficiente ? '' : ' · amostra pequena'}`}
           </div>
         </figure>
       );
@@ -106,7 +107,7 @@ export function BlocoIA({ bloco: b }: { bloco: BlocoVisualizacao }) {
             meta={b.meta}
             polaridade={null}
             descricao={`${b.titulo} por ${b.dimensao}`}
-            barras={b.barras.map(x => ({ rotulo: x.rotulo, valor: x.valor, extra: [x.composicao !== null ? `${br(x.composicao * 100, 0)}% dos eventos` : '', x.amostraSuficiente ? '' : 'amostra pequena'].filter(Boolean).join(' · ') || undefined }))}
+            barras={b.barras.map(x => ({ rotulo: x.rotulo, valor: x.valor, extra: [x.composicao !== null ? `${br(x.composicao * 100, 0)}% dos eventos` : '', x.n === null ? 'não divulgado' : x.amostraSuficiente ? '' : 'amostra pequena'].filter(Boolean).join(' · ') || undefined }))}
           />
           {b.total !== null && <div className="sub">Total do recorte: {valorComUnidade(b.total, b.unidade)}</div>}
         </figure>
@@ -127,7 +128,7 @@ export function BlocoIA({ bloco: b }: { bloco: BlocoVisualizacao }) {
               <div key={i} style={b.melhor === (i ? 'b' : 'a') ? { borderColor: 'var(--bom)' } : undefined}>
                 <small>{lado.rotulo}</small>
                 <b>{valorComUnidade(lado.valor, b.unidade)}</b>
-                <small>n = {br(lado.n, 0)}{lado.amostraSuficiente ? '' : ' · amostra pequena'}</small>
+                <small>{lado.n === null ? 'não divulgado' : `n = ${br(lado.n, 0)}${lado.amostraSuficiente ? '' : ' · amostra pequena'}`}</small>
               </div>
             ))}
           </div>

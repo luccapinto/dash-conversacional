@@ -60,7 +60,7 @@ export interface PontoDado {
   periodo: Periodo;
   rotulo: string;
   valor: number | null;
-  n: number;
+  n: number | null;
 }
 
 export interface Sinal {

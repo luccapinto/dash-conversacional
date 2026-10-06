@@ -28,7 +28,7 @@ describe('valor', () => {
         const a = motorCliente.valor({ indicador: ind.id, periodo: ULTIMOS_12, filtros });
         const b = servidor.valor({ indicador: ind.id, periodo: ULTIMOS_12, filtros });
         expect(a.valor, `${ind.id} ${JSON.stringify(filtros)}`).toBeCloseTo(b.valor!, 9);
-        expect(a.n).toBeCloseTo(b.n, 9);
+        expect(a.n).toBeCloseTo(b.n!, 9);
       }
     }
   });
@@ -57,10 +57,9 @@ describe('valor', () => {
     expect(semCiclo.status).toBe('sem_dados');
   });
 
-  it('guardrail: recorte pequeno é sinalizado', () => {
+  it('guardrail: recorte pequeno de pessoas não é divulgado', () => {
     const r = motorCliente.valor({ indicador: 'turnover', periodo: ULTIMOS_12, filtros: { diretoria: 'Gente', senioridade: 'diretoria' } });
-    expect(r.n).toBeLessThan(MIN_AMOSTRA);
-    expect(r.amostraSuficiente).toBe(false);
+    expect(r).toMatchObject({ valor: null, n: null, amostraSuficiente: false, status: 'sem_dados' });
     expect(motorCliente.valor({ indicador: 'turnover', periodo: ULTIMOS_12 }).amostraSuficiente).toBe(true);
   });
 
@@ -114,11 +113,14 @@ describe('decompor', () => {
     it(`${indicador} por ${dimensao}: média ponderada dos segmentos = total`, () => {
       const r = servidor.decompor({ indicador, dimensao: dimensao as never, periodo: ULTIMOS_12 });
       expect(r.segmentos.length).toBeGreaterThan(1);
-      const pesos = r.segmentos.reduce((a, s) => a + s.peso, 0);
-      expect(pesos).toBeCloseTo(1, 9);
-      const ponderada = r.segmentos.reduce((a, s) => a + s.peso * (s.valor ?? 0), 0);
-      expect(ponderada).toBeCloseTo(r.total.valor!, 9);
       expect(r.reconciliacao!.diferenca).toBeCloseTo(0, 9);
+      // segmento com menos de MIN_AMOSTRA pessoas não é divulgado (absenteísmo, 55+): a conta pública
+      // não fecha sem ele, e a reconciliação acima (do motor, com o valor bruto) é que cobre o caso
+      if (r.segmentos.some(s => s.suprimido)) return;
+      const pesos = r.segmentos.reduce((a, s) => a + s.peso!, 0);
+      expect(pesos).toBeCloseTo(1, 9);
+      const ponderada = r.segmentos.reduce((a, s) => a + s.peso! * (s.valor ?? 0), 0);
+      expect(ponderada).toBeCloseTo(r.total.valor!, 9);
     });
   }
 
@@ -133,13 +135,13 @@ describe('decompor', () => {
     const teto = r.segmentos.find(s => s.segmento === 'teto')!;
     expect(piso.valor!).toBeGreaterThan(teto.valor! * 2);
     // composição (fatia das saídas) e peso (fatia do quadro) são coisas diferentes
-    expect(piso.composicao!).toBeGreaterThan(piso.peso);
+    expect(piso.composicao!).toBeGreaterThan(piso.peso!);
   });
 
-  it('guardrail em toda fatia', () => {
+  it('guardrail em toda fatia: a pequena não é divulgada', () => {
     const r = servidor.decompor({ indicador: 'turnover', dimensao: 'senioridade', periodo: ULTIMOS_12, filtros: { diretoria: 'Gente' } });
-    for (const s of r.segmentos) expect(s.amostraSuficiente).toBe(s.n >= MIN_AMOSTRA);
-    expect(r.segmentos.some(s => !s.amostraSuficiente)).toBe(true);
+    for (const s of r.segmentos) expect(s.amostraSuficiente).toBe(s.n !== null && s.n >= MIN_AMOSTRA);
+    expect(r.segmentos.some(s => s.suprimido && s.valor === null && s.n === null)).toBe(true);
   });
 
   it('o cubo só decompõe pelas dimensões que tem', () => {
@@ -149,11 +151,19 @@ describe('decompor', () => {
 });
 
 describe('cruzar', () => {
+  // genero × faixaSalarial: todas as células de Tecnologia passam do mínimo (em performance ×
+  // faixaSalarial a linha "abaixo" tem menos de 30 pessoas por faixa e não é divulgada)
   it('células reconciliam com o total e trazem n', () => {
+    const r = servidor.cruzar({ indicador: 'turnover', dimensoes: ['genero', 'faixaSalarial'], periodo: ULTIMOS_12, filtros: { diretoria: 'Tecnologia' } });
+    expect(r.celulas.length).toBe(10);
+    const ponderada = r.celulas.reduce((a, c) => a + c.peso! * (c.valor ?? 0), 0);
+    expect(ponderada).toBeCloseTo(r.total.valor!, 9);
+    for (const c of r.celulas) expect(c.n!).toBeGreaterThanOrEqual(MIN_AMOSTRA);
+  });
+
+  it('em Tecnologia, alta performance no piso da faixa sai mais que a média', () => {
     const r = servidor.cruzar({ indicador: 'turnover', dimensoes: ['performance', 'faixaSalarial'], periodo: ULTIMOS_12, filtros: { diretoria: 'Tecnologia' } });
     expect(r.celulas.length).toBe(15);
-    const ponderada = r.celulas.reduce((a, c) => a + c.peso * (c.valor ?? 0), 0);
-    expect(ponderada).toBeCloseTo(r.total.valor!, 9);
     const alta = r.celulas.find(c => c.segmento.performance === 'acima' && c.segmento.faixaSalarial === 'piso')!;
     expect(alta.valor!).toBeGreaterThan(r.total.valor!);
   });

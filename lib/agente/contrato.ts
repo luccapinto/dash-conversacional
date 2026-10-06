@@ -126,6 +126,8 @@ interface BlocoBase {
   /** id do resultado de tool que originou o bloco (r1, r2…), o mesmo do rastro */
   resultado: string;
   rastreio: Rastreio;
+  /** algum número do bloco não foi divulgado (recorte de pessoas abaixo do mínimo): a frase que a tela mostra */
+  aviso?: string;
 }
 
 export interface BlocoKpi extends BlocoBase {
@@ -133,7 +135,7 @@ export interface BlocoKpi extends BlocoBase {
   valor: number | null;
   meta: number | null;
   status: Status | null;
-  n: number;
+  n: number | null;
   amostraSuficiente: boolean;
 }
 
@@ -141,7 +143,7 @@ export interface PontoBloco {
   rotulo: string;
   periodo: Periodo;
   valor: number | null;
-  n: number;
+  n: number | null;
   amostraSuficiente: boolean;
 }
 
@@ -155,7 +157,7 @@ export interface BlocoSerie extends BlocoBase {
 export interface Barra {
   rotulo: string;
   valor: number | null;
-  n: number;
+  n: number | null;
   amostraSuficiente: boolean;
   /** fatia do numerador (0 a 1): "dos eventos, X% eram deste segmento"; null se não se aplica */
   composicao: number | null;
@@ -198,7 +200,7 @@ export interface BlocoTabela extends BlocoBase {
 export interface LadoComparacao {
   rotulo: string;
   valor: number | null;
-  n: number;
+  n: number | null;
   amostraSuficiente: boolean;
 }
 

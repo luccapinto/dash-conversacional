@@ -15,7 +15,7 @@ export interface Medida {
   valor: number | null;
   meta: number | null;
   status: Status;
-  n: number;
+  n: number | null;
   amostraSuficiente: boolean;
 }
 

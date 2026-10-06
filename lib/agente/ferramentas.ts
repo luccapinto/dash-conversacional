@@ -16,6 +16,7 @@
 import { CATALOGO, DOMINIOS, INDICADORES, type Dominio, type IdIndicador, type Unidade } from '@/lib/analytics/catalog';
 import { DIRETORIAS, type Diretoria } from '@/lib/analytics/dominio';
 import {
+  avisoSupressao,
   ErroConsulta,
   type Motor,
   type MotorCliente,
@@ -29,6 +30,7 @@ import {
   type ResultadoImpacto,
   type ResultadoSerie,
   type ResultadoValor,
+  type Supressao,
 } from '@/lib/analytics/engine';
 import { DESCRICAO_DIMENSAO, type Dimensao, type Filtros } from '@/lib/analytics/fatos';
 import { ESQUEMAS_ARGUMENTOS, validarArgs, validarEsquema, type JsonSchema } from '@/lib/analytics/schemas';
@@ -129,6 +131,17 @@ function destaques(itens: Item[], unidade: Unidade) {
 }
 
 /**
+ * Recorte de pessoas abaixo do mínimo: no lugar do número, a frase e o mínimo (a guarda confere o
+ * mínimo se o modelo citar). Os itens suprimidos levam só `naoDivulgado`.
+ */
+function naoDivulgado(itens: ReadonlyArray<{ suprimido?: Supressao }>) {
+  const s = itens.find(i => i.suprimido)?.suprimido;
+  return s ? { aviso: avisoSupressao(s), minimo: s.minimo } : {};
+}
+
+const totalDe = (r: ResultadoValor) => (r.suprimido ? { valor: null, naoDivulgado: true } : { valor: arred(r.valor), n: r.n });
+
+/**
  * O status calculado em palavras, com o lado da meta: a resposta qualifica o resultado por ele, não
  * pela leitura dos números ("16,27 contra 16" é atenção, não "dentro da meta")
  */
@@ -143,6 +156,8 @@ function textoStatus({ status, valor, meta }: ResultadoValor): string {
 function resumoValor(id: string, d: ResultadoValor) {
   const ind = CATALOGO[d.indicador];
   const { filtros } = d.rastreio.parametros as { filtros?: Filtros };
+  const periodo = rotuloPeriodo(d.rastreio.periodoEfetivo);
+  if (d.suprimido) return { id, indicador: d.indicador, nome: ind.nome, periodo, filtros, valor: null, unidade: d.unidade, meta: d.meta, status: d.status, ...naoDivulgado([d]) };
   const calc = ind.calculo;
   // eventos do numerador (saídas, promoções…): as somas do rastreio já estão na janela de cada termo
   const eventos = ind.evento && calc.tipo === 'razao' ? calc.numerador.reduce((s, [coef, m]) => s + coef * (d.rastreio.medidas[m] ?? 0), 0) : null;
@@ -150,7 +165,7 @@ function resumoValor(id: string, d: ResultadoValor) {
     id,
     indicador: d.indicador,
     nome: ind.nome,
-    periodo: rotuloPeriodo(d.rastreio.periodoEfetivo),
+    periodo,
     filtros,
     valor: arred(d.valor),
     unidade: d.unidade,
@@ -193,8 +208,11 @@ function resumoSerie(id: string, d: ResultadoSerie) {
     unidade: d.unidade,
     granularidade: d.granularidade,
     meta: ind.meta?.valor ?? null,
-    pontos: d.pontos.map(p => ({ rotulo: p.rotulo, valor: arred(p.valor), n: p.n, ...(p.amostraSuficiente ? {} : { amostraInsuficiente: true }) })),
+    pontos: d.pontos.map(p => (p.suprimido
+      ? { rotulo: p.rotulo, valor: null, naoDivulgado: true }
+      : { rotulo: p.rotulo, valor: arred(p.valor), n: p.n, ...(p.amostraSuficiente ? {} : { amostraInsuficiente: true }) })),
     resumo,
+    ...naoDivulgado(d.pontos),
   };
 }
 
@@ -207,16 +225,19 @@ function resumoDecompor(id: string, d: ResultadoDecompor) {
     dimensao: d.dimensao,
     recorte: descreverRecorte(d.rastreio.periodoEfetivo, filtros),
     unidade: d.unidade,
-    total: { valor: arred(d.total.valor), n: d.total.n },
-    segmentos: d.segmentos.map(s => ({
-      segmento: s.segmento,
-      valor: arred(s.valor),
-      n: s.n,
-      pesoPct: pct(s.peso),
-      composicaoPct: pct(s.composicao),
-      ...(s.amostraSuficiente ? {} : { amostraInsuficiente: true }),
-    })),
+    total: totalDe(d.total),
+    segmentos: d.segmentos.map(s => (s.suprimido
+      ? { segmento: s.segmento, valor: null, naoDivulgado: true }
+      : {
+        segmento: s.segmento,
+        valor: arred(s.valor),
+        n: s.n,
+        pesoPct: pct(s.peso),
+        composicaoPct: pct(s.composicao),
+        ...(s.amostraSuficiente ? {} : { amostraInsuficiente: true }),
+      })),
     destaques: destaques(d.segmentos.filter(s => s.amostraSuficiente && s.valor !== null).map(s => ({ rotulo: s.segmento, valor: s.valor! })), d.unidade),
+    ...naoDivulgado([d.total, ...d.segmentos]),
   };
 }
 
@@ -225,7 +246,7 @@ const MAX_CELULAS = 60;
 function resumoCruzar(id: string, d: ResultadoCruzar) {
   const { filtros } = d.rastreio.parametros as { filtros?: Filtros };
   const rotulo = (c: (typeof d.celulas)[number]) => d.dimensoes.map(x => c.segmento[x]).join(' · ');
-  const celulas = [...d.celulas].sort((a, b) => b.n - a.n);
+  const celulas = [...d.celulas].sort((a, b) => (b.n ?? -1) - (a.n ?? -1));
   return {
     id,
     indicador: d.indicador,
@@ -233,28 +254,29 @@ function resumoCruzar(id: string, d: ResultadoCruzar) {
     dimensoes: d.dimensoes,
     recorte: descreverRecorte(d.rastreio.periodoEfetivo, filtros),
     unidade: d.unidade,
-    total: { valor: arred(d.total.valor), n: d.total.n },
-    celulas: celulas.slice(0, MAX_CELULAS).map(c => ({
-      segmento: rotulo(c),
-      valor: arred(c.valor),
-      n: c.n,
-      composicaoPct: pct(c.composicao),
-      ...(c.amostraSuficiente ? {} : { amostraInsuficiente: true }),
-    })),
+    total: totalDe(d.total),
+    celulas: celulas.slice(0, MAX_CELULAS).map(c => (c.suprimido
+      ? { segmento: rotulo(c), valor: null, naoDivulgado: true }
+      : {
+        segmento: rotulo(c),
+        valor: arred(c.valor),
+        n: c.n,
+        composicaoPct: pct(c.composicao),
+        ...(c.amostraSuficiente ? {} : { amostraInsuficiente: true }),
+      })),
     ...(celulas.length > MAX_CELULAS ? { celulasOmitidas: celulas.length - MAX_CELULAS } : {}),
     destaques: destaques(d.celulas.filter(c => c.amostraSuficiente && c.valor !== null).map(c => ({ rotulo: rotulo(c), valor: c.valor! })), d.unidade),
+    ...naoDivulgado([d.total, ...d.celulas]),
   };
 }
 
 function resumoComparar(id: string, d: ResultadoComparar) {
   const { a, b } = d.rastreio.parametros as { a: { periodo: Periodo; filtros?: Filtros }; b: { periodo: Periodo; filtros?: Filtros } };
-  const lado = (r: ResultadoValor, rec: { periodo: Periodo; filtros?: Filtros }) => ({
-    recorte: descreverRecorte(r.rastreio.periodoEfetivo, rec.filtros),
-    valor: arred(r.valor),
-    n: r.n,
-    status: r.status,
-    ...(r.amostraSuficiente ? {} : { amostraInsuficiente: true }),
-  });
+  const lado = (r: ResultadoValor, rec: { periodo: Periodo; filtros?: Filtros }) => {
+    const recorte = descreverRecorte(r.rastreio.periodoEfetivo, rec.filtros);
+    if (r.suprimido) return { recorte, valor: null, status: r.status, naoDivulgado: true };
+    return { recorte, valor: arred(r.valor), n: r.n, status: r.status, ...(r.amostraSuficiente ? {} : { amostraInsuficiente: true }) };
+  };
   const razao = d.a.valor !== null && d.b.valor ? d.a.valor / d.b.valor : null;
   return {
     id,
@@ -268,6 +290,7 @@ function resumoComparar(id: string, d: ResultadoComparar) {
     variacaoRelativaPct: arred(d.variacaoRelativa),
     razaoAB: razao !== null && razao > 0 ? arred(razao) : null,
     melhor: d.melhor,
+    ...naoDivulgado([d.a, d.b]),
   };
 }
 
@@ -280,12 +303,13 @@ function resumoDrivers(id: string, d: ResultadoDrivers) {
     nome: CATALOGO[d.indicador].nome,
     recorte: descreverRecorte(d.rastreio.periodoEfetivo, filtros),
     unidade: d.unidade,
-    total: { valor: arred(d.total.valor), n: d.total.n },
+    total: totalDe(d.total),
     fatoresDeRisco: d.fatoresDeRisco.map(fator),
     fatoresProtetivos: d.fatoresProtetivos.map(fator),
     combinacoes: d.combinacoes.map(fator),
     metodo: d.metodo,
     aviso: d.aviso,
+    ...naoDivulgado([d.total]),
   };
 }
 
@@ -302,6 +326,7 @@ function resumoImpacto(id: string, d: ResultadoImpacto) {
     unidade: 'R$',
     ...(d.valor !== null && meses > 0 ? { mediaMensal: Math.round(d.valor / meses), meses } : {}),
     metodologia: d.metodologia,
+    ...naoDivulgado([d]),
   };
 }
 
@@ -549,7 +574,7 @@ export function criarSessao(amb: AmbienteFerramentas): SessaoFerramentas {
           argumentos: r.argumentos,
           ok: r.ok,
           ...(r.erro ? { erro: r.erro } : {}),
-          ...(rastreio ? { formula: rastreio.formula, n: rastreio.n, periodoEfetivo: rastreio.periodoEfetivo, fonte: rastreio.fonte } : {}),
+          ...(rastreio ? { formula: rastreio.formula, ...(rastreio.n !== null ? { n: rastreio.n } : {}), periodoEfetivo: rastreio.periodoEfetivo, fonte: rastreio.fonte } : {}),
           duracaoMs: r.duracaoMs,
         };
       });

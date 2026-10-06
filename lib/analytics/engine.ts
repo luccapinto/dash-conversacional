@@ -9,7 +9,8 @@
  *      as mesmas funções em todas as dimensões do catálogo + drivers (lift multivariado).
  *
  * Todo resultado carrega `rastreio` (indicador, fórmula, parâmetros, período efetivo, n e as
- * somas usadas no cálculo) para o "Como calculei", e todo recorte traz o guardrail de amostra.
+ * somas usadas no cálculo) para o "Como calculei", e todo recorte traz o guardrail de amostra:
+ * recorte de pessoas abaixo de MIN_AMOSTRA não devolve número (ver `Supressao`).
  * Nenhuma função arredonda: a formatação é da UI.
  */
 
@@ -38,7 +39,12 @@ import {
   type Medidas,
 } from './fatos';
 
-/** Abaixo disso a fatia é sinalizada como estatisticamente frágil (pessoas, respostas ou vagas) */
+/**
+ * Abaixo disso a fatia é frágil (pessoas, respostas ou vagas). Se a amostra conta pessoas, o
+ * recorte não é divulgado: valor, n e somas saem vazios, com o motivo e o mínimo (k-anonimato).
+ * Cruzando diretoria, senioridade, gênero, raça e PCD, um recorte menor que isso chega a uma ou
+ * duas pessoas e ao salário, à saída ou à nota de eNPS delas.
+ */
 export const MIN_AMOSTRA = 30;
 /** Drivers: lift mínimo de risco, máximo de proteção e eventos esperados mínimos por segmento */
 export const LIFT_RISCO = 1.3;
@@ -49,6 +55,19 @@ export const GANHO_COMBINACAO = 1.15;
 
 export class ErroConsulta extends Error {
   override name = 'ErroConsulta';
+}
+
+/** Recorte não divulgado: no lugar do valor e do n, o motivo e o mínimo exigido */
+export interface Supressao {
+  motivo: 'amostra_insuficiente';
+  minimo: number;
+}
+
+const SUPRESSAO: Supressao = { motivo: 'amostra_insuficiente', minimo: MIN_AMOSTRA };
+
+/** A frase que sai no lugar do número, para o modelo e para a tela */
+export function avisoSupressao({ minimo }: Supressao): string {
+  return `amostra insuficiente (menos de ${minimo} pessoas) — valor não divulgado`;
 }
 
 export interface Periodo {
@@ -82,8 +101,8 @@ export interface Rastreio {
   formula: string;
   parametros: Record<string, unknown>;
   periodoEfetivo: { inicio: Mes; fim: Mes; meses: number; leitura: Leitura };
-  /** tamanho da amostra do recorte principal */
-  n: number;
+  /** tamanho da amostra do recorte principal; null se o recorte não é divulgado */
+  n: number | null;
   amostraMinima: number;
   fonte: Origem;
   /** somas lidas pelo cálculo, na janela de cada termo */
@@ -96,8 +115,9 @@ export interface ResultadoValor {
   unidade: Unidade;
   meta: number | null;
   status: Status;
-  n: number;
+  n: number | null;
   amostraSuficiente: boolean;
+  suprimido?: Supressao;
   rastreio: Rastreio;
 }
 
@@ -105,8 +125,9 @@ export interface PontoSerie {
   periodo: Periodo;
   rotulo: string;
   valor: number | null;
-  n: number;
+  n: number | null;
   amostraSuficiente: boolean;
+  suprimido?: Supressao;
   medidas: Partial<Medidas>;
 }
 
@@ -121,12 +142,13 @@ export interface ResultadoSerie {
 export interface Segmento {
   segmento: string;
   valor: number | null;
-  n: number;
+  n: number | null;
   amostraSuficiente: boolean;
   /** fatia do denominador (taxas) ou do total (contagens): peso na reconciliação */
-  peso: number;
+  peso: number | null;
   /** fatia do numerador (composição): "dos desligamentos, X% eram deste segmento" */
   composicao: number | null;
+  suprimido?: Supressao;
 }
 
 export interface ResultadoDecompor {
@@ -195,6 +217,7 @@ export interface ResultadoImpacto {
   valor: number | null;
   unidade: 'R$';
   metodologia: string;
+  suprimido?: Supressao;
   rastreio: Rastreio;
 }
 
@@ -346,7 +369,7 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
     if (filtros[d] !== undefined) throw new ErroConsulta(`A dimensão ${d} já está filtrada; não dá para decompor por ela.`);
   }
 
-  function rastreio(funcao: NomeFuncao, ind: Indicador, parametros: Record<string, unknown>, periodo: Periodo, n: number, medidas: Partial<Medidas>): Rastreio {
+  function rastreio(funcao: NomeFuncao, ind: Indicador, parametros: Record<string, unknown>, periodo: Periodo, n: number | null, medidas: Partial<Medidas>): Rastreio {
     return {
       funcao, indicador: ind.id, nome: ind.nome, formula: ind.formula, parametros,
       periodoEfetivo: periodoEfetivo(ind, periodo), n, amostraMinima: MIN_AMOSTRA, fonte: origem, medidas,
@@ -359,11 +382,23 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
     return grupos.map(g => ({ chave: g.chave, a: { soma: g.soma, primeiro: g.primeiro, ultimo: g.ultimo, meses } as Agregado }));
   }
 
+  /** Recorte de pessoas abaixo do mínimo; janela sem dado nenhum (mês sem ciclo de eNPS) não conta */
+  function suprimir(ind: Indicador, n: number, periodo: Periodo): boolean {
+    return ind.amostra.pessoas && n < MIN_AMOSTRA && periodoEfetivo(ind, periodo).meses > 0;
+  }
+
   function resultadoDe(funcao: NomeFuncao, ind: Indicador, periodo: Periodo, filtros: Filtros, a: Agregado): ResultadoValor {
-    const valor = ind.calcular(a);
     const n = amostraDe(ind, a);
+    const meta = ind.meta?.valor ?? null;
+    if (suprimir(ind, n, periodo)) {
+      return {
+        indicador: ind.id, valor: null, unidade: ind.unidade, meta, status: 'sem_dados', n: null, amostraSuficiente: false, suprimido: SUPRESSAO,
+        rastreio: rastreio(funcao, ind, { periodo, filtros }, periodo, null, {}),
+      };
+    }
+    const valor = ind.calcular(a);
     return {
-      indicador: ind.id, valor, unidade: ind.unidade, meta: ind.meta?.valor ?? null, status: statusDe(ind, valor),
+      indicador: ind.id, valor, unidade: ind.unidade, meta, status: statusDe(ind, valor),
       n, amostraSuficiente: n >= MIN_AMOSTRA,
       rastreio: rastreio(funcao, ind, { periodo, filtros }, periodo, n, medidasUsadas(ind, a)),
     };
@@ -380,21 +415,27 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
     return totalCom(funcao, ind, periodo, filtros).r;
   }
 
-  function segmentar(ind: Indicador, tot: { r: ResultadoValor; a: Agregado }, periodo: Periodo, filtros: Filtros, agrupar: Dimensao[]) {
-    const pesoTotal = pesoBruto(ind, tot.a, tot.r.valor);
+  /**
+   * Fatias do recorte. `bruto` (valor e peso sem supressão) fica no motor, só para a reconciliação;
+   * fatia de pessoas abaixo do mínimo sai sem valor, n, peso nem composição.
+   */
+  function segmentar(ind: Indicador, tot: { a: Agregado }, periodo: Periodo, filtros: Filtros, agrupar: Dimensao[]) {
+    const pesoTotal = pesoBruto(ind, tot.a, ind.calcular(tot.a));
     const numTotal = numeradorBruto(ind, tot.a);
     return agregados(ind, periodo, filtros, agrupar).map(({ chave, a }) => {
       const valor = ind.calcular(a);
       const n = amostraDe(ind, a);
-      const peso = pesoBruto(ind, a, valor);
+      const p = pesoBruto(ind, a, valor);
+      const peso = p !== null && pesoTotal ? p / pesoTotal : 0;
+      const bruto = { valor, peso };
+      if (suprimir(ind, n, periodo)) {
+        return { chave, bruto, fatia: { valor: null, n: null, amostraSuficiente: false, peso: null, composicao: null, suprimido: SUPRESSAO } };
+      }
       const num = numeradorBruto(ind, a);
       return {
         chave,
-        valor,
-        n,
-        amostraSuficiente: n >= MIN_AMOSTRA,
-        peso: peso !== null && pesoTotal ? peso / pesoTotal : 0,
-        composicao: num !== null && numTotal ? num / numTotal : null,
+        bruto,
+        fatia: { valor, n, amostraSuficiente: n >= MIN_AMOSTRA, peso, composicao: num !== null && numTotal ? num / numTotal : null },
       };
     });
   }
@@ -430,7 +471,9 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
         if (primeiro) a.primeiro = primeiro;
         if (ultimo) a.ultimo = ultimo;
         const n = amostraDe(ind, a);
-        return { periodo: b, rotulo: rotuloBalde(g, b.inicio), valor: ind.calcular(a), n, amostraSuficiente: n >= MIN_AMOSTRA, medidas: medidasUsadas(ind, a) };
+        const rotulo = rotuloBalde(g, b.inicio);
+        if (suprimir(ind, n, b)) return { periodo: b, rotulo, valor: null, n: null, amostraSuficiente: false, suprimido: SUPRESSAO, medidas: {} };
+        return { periodo: b, rotulo, valor: ind.calcular(a), n, amostraSuficiente: n >= MIN_AMOSTRA, medidas: medidasUsadas(ind, a) };
       });
       const tot = total('serie', ind, periodo, filtros);
       return {
@@ -444,15 +487,15 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
       validarRecorte(ind, periodo, filtros);
       validarDimensao(ind, dimensao, filtros);
       const tot = totalCom('decompor', ind, periodo, filtros);
-      const segmentos: Segmento[] = segmentar(ind, tot, periodo, filtros, [dimensao]).map(s => ({
-        segmento: s.chave[dimensao]!, valor: s.valor, n: s.n, amostraSuficiente: s.amostraSuficiente, peso: s.peso, composicao: s.composicao,
-      }));
+      const fatias = segmentar(ind, tot, periodo, filtros, [dimensao]);
+      const segmentos: Segmento[] = fatias.map(s => ({ segmento: s.chave[dimensao]!, ...s.fatia }));
+      // com os valores brutos: a diferença contra o total não entrega a fatia suprimida
       let reconciliacao: ResultadoDecompor['reconciliacao'] = null;
       const { r: totalR } = tot;
       if (ind.calculo.tipo !== 'compa' && totalR.valor !== null) {
         const soma = ind.calculo.tipo === 'razao'
-          ? segmentos.reduce((acc, s) => acc + s.peso * (s.valor ?? 0), 0)
-          : segmentos.reduce((acc, s) => acc + (s.valor ?? 0), 0);
+          ? fatias.reduce((acc, s) => acc + s.bruto.peso * (s.bruto.valor ?? 0), 0)
+          : fatias.reduce((acc, s) => acc + (s.bruto.valor ?? 0), 0);
         reconciliacao = { segmentos: soma, total: totalR.valor, diferenca: soma - totalR.valor };
       }
       return {
@@ -469,9 +512,7 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
       }
       for (const d of dims) validarDimensao(ind, d, filtros);
       const tot = totalCom('cruzar', ind, periodo, filtros);
-      const celulas: Celula[] = segmentar(ind, tot, periodo, filtros, dims).map(s => ({
-        segmento: s.chave, valor: s.valor, n: s.n, amostraSuficiente: s.amostraSuficiente, peso: s.peso, composicao: s.composicao,
-      }));
+      const celulas: Celula[] = segmentar(ind, tot, periodo, filtros, dims).map(s => ({ segmento: s.chave, ...s.fatia }));
       return {
         indicador, dimensoes: dims, unidade: ind.unidade, total: tot.r, celulas,
         rastreio: { ...tot.r.rastreio, parametros: { periodo, filtros, dimensoes: dims } },
@@ -506,6 +547,14 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
       }
       const calc = ind.calculo;
       const { r: tot, a: totalA } = totalCom('drivers', ind, periodo, filtros);
+      const metodo = `Lift = taxa do segmento ÷ taxa do recorte. Fatores: cada atributo do roster, com pelo menos ${MIN_AMOSTRA} pessoas e ${MIN_EVENTOS_ESPERADOS} eventos esperados; risco com lift ≥ ${LIFT_RISCO}, proteção com lift ≤ ${LIFT_PROTECAO.toFixed(2)}. Combinações: pares de atributos fortes, com o dobro de amostra, que só entram se o lift do par passa o de cada atributo sozinho em ${Math.round((GANHO_COMBINACAO - 1) * 100)}%.`;
+      const rastreioDrivers = { ...tot.rastreio, parametros: { periodo, filtros } };
+      if (tot.suprimido) {
+        return {
+          indicador, unidade: ind.unidade, total: tot, fatoresDeRisco: [], fatoresProtetivos: [], combinacoes: [], metodo,
+          aviso: avisoSupressao(tot.suprimido), rastreio: rastreioDrivers,
+        };
+      }
       const taxaTotal = tot.valor ?? 0;
       const candidatas = dimensoes(ind.id).filter(d => filtros[d] === undefined);
 
@@ -543,9 +592,9 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
         fatoresDeRisco: univariados.filter(risco).sort((x, y) => y.lift - x.lift).slice(0, 8),
         fatoresProtetivos: univariados.filter(protecao).sort((x, y) => x.lift - y.lift).slice(0, 6),
         combinacoes: combinacoes.sort((x, y) => forca(y) - forca(x)).slice(0, 6),
-        metodo: `Lift = taxa do segmento ÷ taxa do recorte. Fatores: cada atributo do roster, com pelo menos ${MIN_AMOSTRA} pessoas e ${MIN_EVENTOS_ESPERADOS} eventos esperados; risco com lift ≥ ${LIFT_RISCO}, proteção com lift ≤ ${LIFT_PROTECAO.toFixed(2)}. Combinações: pares de atributos fortes, com o dobro de amostra, que só entram se o lift do par passa o de cada atributo sozinho em ${Math.round((GANHO_COMBINACAO - 1) * 100)}%.`,
+        metodo,
         aviso: eventos < MIN_EVENTOS_ESPERADOS * 3 ? `Só ${eventos} eventos no recorte: leia os drivers como indicativos.` : null,
-        rastreio: { ...tot.rastreio, parametros: { periodo, filtros } },
+        rastreio: rastreioDrivers,
       };
     },
 
@@ -557,6 +606,12 @@ export function criarMotor(fonte: Fonte, origem: Origem): Motor {
         return {
           indicador, aplicavel: false, valor: null, unidade: 'R$',
           metodologia: `"${ind.nome}" não tem custo financeiro associado no catálogo.`,
+          rastreio: { ...tot.rastreio, parametros: { periodo, filtros } },
+        };
+      }
+      if (tot.suprimido) {
+        return {
+          indicador, aplicavel: true, valor: null, unidade: 'R$', metodologia: ind.impacto.metodologia, suprimido: tot.suprimido,
           rastreio: { ...tot.rastreio, parametros: { periodo, filtros } },
         };
       }

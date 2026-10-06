@@ -73,8 +73,12 @@ export interface Indicador {
   calculo: Calculo;
   /** medidas lidas pelo cálculo, pela amostra e pelo impacto */
   medidas: readonly Medida[];
-  /** amostra (n) do recorte: pessoas, respondentes, vagas ou ofertas */
-  amostra: { termo: Termo; porMes: boolean; descricao: string };
+  /**
+   * amostra (n) do recorte: pessoas, respondentes, vagas ou ofertas. `pessoas`: a amostra conta
+   * gente (quadro, exposição, liderança, gestores, respondentes), e abaixo de MIN_AMOSTRA o motor
+   * não divulga o valor (k-anonimato); vagas e ofertas não identificam ninguém e só ficam frágeis.
+   */
+  amostra: { termo: Termo; porMes: boolean; descricao: string; pessoas: boolean };
   /** taxa de evento sobre pessoas: habilita `drivers` (lift por segmento no roster) */
   evento: boolean;
   /** custo estimado em BRL, quando faz sentido */
@@ -125,10 +129,10 @@ const PESSOAS: readonly Dimensao[] = DIMENSOES.filter(d => d !== 'mes');
 const VAGAS: readonly Dimensao[] = ['diretoria', 'especialidade', 'senioridade'];
 const sem = (...fora: Dimensao[]) => PESSOAS.filter(d => !fora.includes(d));
 
-const EXPOSICAO = { termo: [s('hcIni')], porMes: true, descricao: 'headcount médio no início dos meses da janela' } as const;
-const QUADRO_FIM = { termo: [u('hc')], porMes: false, descricao: 'headcount no fim do período' } as const;
-const LIDERANCA_FIM = { termo: [u('lid')], porMes: false, descricao: 'pessoas na liderança no fim do período' } as const;
-const FECHADAS = { termo: [s('vagasFechadas')], porMes: false, descricao: 'vagas fechadas no período' } as const;
+const EXPOSICAO = { termo: [s('hcIni')], porMes: true, descricao: 'headcount médio no início dos meses da janela', pessoas: true } as const;
+const QUADRO_FIM = { termo: [u('hc')], porMes: false, descricao: 'headcount no fim do período', pessoas: true } as const;
+const LIDERANCA_FIM = { termo: [u('lid')], porMes: false, descricao: 'pessoas na liderança no fim do período', pessoas: true } as const;
+const FECHADAS = { termo: [s('vagasFechadas')], porMes: false, descricao: 'vagas fechadas no período', pessoas: false } as const;
 
 const META_INTERNA = 'meta interna da Verta S.A. (fictícia)';
 const CUSTO_REPOSICAO = 'Custo de reposição ≈ 6 salários mensais por saída (recrutamento, integração e rampa de produtividade).';
@@ -169,7 +173,7 @@ const DEFINICOES = {
     dimensoes: sem('tempoCasa', 'faixaEtaria', 'enps', 'mobilidadeRecente', 'trocasGestor'),
     explicacao: 'Variação percentual do quadro entre o primeiro e o último dia do período.',
     calculo: { tipo: 'razao', numerador: [u('hc'), [-1, 'hcIni', 'primeiro']], denominador: [[1, 'hcIni', 'primeiro']], escala: 100 },
-    amostra: { termo: [[1, 'hcIni', 'primeiro']], porMes: false, descricao: 'headcount no início do período' },
+    amostra: { termo: [[1, 'hcIni', 'primeiro']], porMes: false, descricao: 'headcount no início do período', pessoas: true },
   },
   span_controle: {
     nome: 'Span of control',
@@ -182,7 +186,7 @@ const DEFINICOES = {
     dimensoes: ['diretoria', 'especialidade'],
     explicacao: 'Média de liderados diretos por gestor. Muito baixo indica camadas demais; muito alto, gestor sobrecarregado.',
     calculo: { tipo: 'razao', numerador: [u('liderados')], denominador: [u('gestores')], escala: 1 },
-    amostra: { termo: [u('gestores')], porMes: false, descricao: 'gestores com liderados no fim do período' },
+    amostra: { termo: [u('gestores')], porMes: false, descricao: 'gestores com liderados no fim do período', pessoas: true },
   },
   pct_lideranca: {
     nome: '% em liderança',
@@ -253,7 +257,7 @@ const DEFINICOES = {
     dimensoes: sem('performance'),
     explicacao: 'Taxa anualizada de pedidos de demissão entre quem tem avaliação "acima do esperado". É a perda mais cara.',
     calculo: { tipo: 'razao', numerador: [s('deslLam')], denominador: [s('hcAltaIni')], escala: 1200 },
-    amostra: { termo: [s('hcAltaIni')], porMes: true, descricao: 'pessoas de alta performance (média no início dos meses)' },
+    amostra: { termo: [s('hcAltaIni')], porMes: true, descricao: 'pessoas de alta performance (média no início dos meses)', pessoas: true },
     evento: true,
     impacto: { termo: [s('salDeslLam')], escala: 6, metodologia: CUSTO_REPOSICAO },
   },
@@ -268,7 +272,7 @@ const DEFINICOES = {
     dimensoes: sem('tempoCasa'),
     explicacao: 'Taxa anualizada de saída no primeiro ano de casa. Alta indica problema de contratação ou de onboarding.',
     calculo: { tipo: 'razao', numerador: [s('deslNov')], denominador: [s('hcNovIni')], escala: 1200 },
-    amostra: { termo: [s('hcNovIni')], porMes: true, descricao: 'pessoas com menos de 12 meses de casa (média no início dos meses)' },
+    amostra: { termo: [s('hcNovIni')], porMes: true, descricao: 'pessoas com menos de 12 meses de casa (média no início dos meses)', pessoas: true },
     evento: true,
     impacto: { termo: [s('salDeslNov')], escala: 6, metodologia: CUSTO_REPOSICAO },
   },
@@ -296,7 +300,7 @@ const DEFINICOES = {
     dimensoes: VAGAS,
     explicacao: 'Estoque de vagas ainda não preenchidas (reposição e crescimento).',
     calculo: { tipo: 'total', termo: [u('vagasAbertas')], escala: 1 },
-    amostra: { termo: [u('vagasAbertas')], porMes: false, descricao: 'vagas abertas no fim do período' },
+    amostra: { termo: [u('vagasAbertas')], porMes: false, descricao: 'vagas abertas no fim do período', pessoas: false },
   },
   time_to_fill: {
     nome: 'Time to fill',
@@ -322,7 +326,7 @@ const DEFINICOES = {
     dimensoes: VAGAS,
     explicacao: 'De cada 100 propostas feitas, quantas foram aceitas. Queda costuma indicar salário abaixo do mercado.',
     calculo: { tipo: 'razao', numerador: [s('aceites')], denominador: [s('ofertas')], escala: 100 },
-    amostra: { termo: [s('ofertas')], porMes: false, descricao: 'ofertas feitas no período' },
+    amostra: { termo: [s('ofertas')], porMes: false, descricao: 'ofertas feitas no período', pessoas: false },
   },
   preenchimento_interno: {
     nome: '% de vagas preenchidas internamente',
@@ -363,7 +367,7 @@ const DEFINICOES = {
     dimensoes: sem('enps'),
     explicacao: 'Vai de −100 a +100. Pesquisa trimestral (Dez, Mar, Jun, Set); acima de zero há mais promotores que detratores.',
     calculo: { tipo: 'razao', numerador: [s('enpsProm'), s('enpsDetr', -1)], denominador: [s('enpsResp')], escala: 100 },
-    amostra: { termo: [s('enpsResp')], porMes: false, descricao: 'respostas de eNPS no período' },
+    amostra: { termo: [s('enpsResp')], porMes: false, descricao: 'respostas de eNPS no período', pessoas: true },
   },
   absenteismo: {
     nome: 'Absenteísmo',
