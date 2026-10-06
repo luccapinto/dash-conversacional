@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "orcamento": "tsx scripts/orcamento.ts"
+    "orcamento": "tsx scripts/orcamento.ts",
+    "gravar-demo": "tsx scripts/gravar-demo.ts"
   },
   "dependencies": {
     "next": "16.2.7",

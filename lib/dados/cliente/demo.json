@@ -1,0 +1,1723 @@
+{
+ "itens": [
+  {
+   "id": "headcount",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de headcount?",
+   "indicador": "headcount",
+   "nome": "Headcount",
+   "indicadores": [
+    "headcount"
+   ],
+   "recorte": {
+    "indicador": "headcount",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "headcount-diretorias",
+    "admissoes"
+   ]
+  },
+  {
+   "id": "headcount-diretorias",
+   "grupo": "indicador",
+   "pergunta": "Quais diretorias mais cresceram em quadro no último ano?",
+   "indicador": "headcount",
+   "nome": "Headcount",
+   "indicadores": [
+    "headcount"
+   ],
+   "recorte": {
+    "indicador": "headcount",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "headcount",
+    "admissoes-ritmo"
+   ]
+  },
+  {
+   "id": "admissoes",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de admissões?",
+   "indicador": "admissoes",
+   "nome": "Admissões",
+   "indicadores": [
+    "admissoes"
+   ],
+   "recorte": {
+    "indicador": "admissoes",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "admissoes-ritmo",
+    "historia-onboarding-produtos"
+   ]
+  },
+  {
+   "id": "admissoes-ritmo",
+   "grupo": "indicador",
+   "pergunta": "As contratações aceleraram em relação ao ano anterior?",
+   "indicador": "admissoes",
+   "nome": "Admissões",
+   "indicadores": [
+    "admissoes"
+   ],
+   "recorte": {
+    "indicador": "admissoes",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "admissoes",
+    "early-attrition"
+   ]
+  },
+  {
+   "id": "span-controle",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de span of control?",
+   "indicador": "span_controle",
+   "nome": "Span of control",
+   "indicadores": [
+    "span_controle"
+   ],
+   "recorte": {
+    "indicador": "span_controle",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "span-controle-saidas",
+    "headcount"
+   ]
+  },
+  {
+   "id": "span-controle-saidas",
+   "grupo": "indicador",
+   "pergunta": "Os times maiores perdem mais gente?",
+   "indicador": "span_controle",
+   "nome": "Span of control",
+   "indicadores": [
+    "span_controle"
+   ],
+   "recorte": {
+    "indicador": "span_controle",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "span-controle",
+    "historia-fuga-tecnologia"
+   ]
+  },
+  {
+   "id": "turnover",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de turnover total?",
+   "indicador": "turnover",
+   "nome": "Turnover total",
+   "indicadores": [
+    "turnover"
+   ],
+   "recorte": {
+    "indicador": "turnover",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "turnover-ano",
+    "historia-janeiro-da"
+   ]
+  },
+  {
+   "id": "turnover-ano",
+   "grupo": "indicador",
+   "pergunta": "O turnover de 2026 está melhor ou pior que o de 2025?",
+   "indicador": "turnover",
+   "nome": "Turnover total",
+   "indicadores": [
+    "turnover"
+   ],
+   "recorte": {
+    "indicador": "turnover",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "turnover",
+    "historia-operacoes"
+   ]
+  },
+  {
+   "id": "turnover-voluntario",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de turnover voluntário?",
+   "indicador": "turnover_voluntario",
+   "nome": "Turnover voluntário",
+   "indicadores": [
+    "turnover_voluntario"
+   ],
+   "recorte": {
+    "indicador": "turnover_voluntario",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "turnover-voluntario-custo",
+    "historia-fuga-tecnologia"
+   ]
+  },
+  {
+   "id": "turnover-voluntario-custo",
+   "grupo": "indicador",
+   "pergunta": "Quanto custa o turnover voluntário e em que faixa salarial ele se concentra?",
+   "indicador": "turnover_voluntario",
+   "nome": "Turnover voluntário",
+   "indicadores": [
+    "turnover_voluntario"
+   ],
+   "recorte": {
+    "indicador": "turnover_voluntario",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "turnover-voluntario",
+    "historia-fuga-tecnologia"
+   ]
+  },
+  {
+   "id": "turnover-involuntario",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de turnover involuntário?",
+   "indicador": "turnover_involuntario",
+   "nome": "Turnover involuntário",
+   "indicadores": [
+    "turnover_involuntario"
+   ],
+   "recorte": {
+    "indicador": "turnover_involuntario",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "turnover-involuntario-janeiro",
+    "historia-janeiro-da"
+   ]
+  },
+  {
+   "id": "turnover-involuntario-janeiro",
+   "grupo": "indicador",
+   "pergunta": "Quanto pesa o corte de janeiro no turnover involuntário?",
+   "indicador": "turnover_involuntario",
+   "nome": "Turnover involuntário",
+   "indicadores": [
+    "turnover_involuntario"
+   ],
+   "recorte": {
+    "indicador": "turnover_involuntario",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "turnover-involuntario",
+    "historia-janeiro-da"
+   ]
+  },
+  {
+   "id": "early-attrition",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de early attrition?",
+   "indicador": "early_attrition",
+   "nome": "Early attrition",
+   "indicadores": [
+    "early_attrition"
+   ],
+   "recorte": {
+    "indicador": "early_attrition",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "early-attrition-onboarding",
+    "historia-onboarding-produtos"
+   ]
+  },
+  {
+   "id": "early-attrition-onboarding",
+   "grupo": "indicador",
+   "pergunta": "Quanto o onboarding pesa na saída no primeiro ano?",
+   "indicador": "early_attrition",
+   "nome": "Early attrition",
+   "indicadores": [
+    "early_attrition"
+   ],
+   "recorte": {
+    "indicador": "early_attrition",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "early-attrition",
+    "historia-onboarding-produtos"
+   ]
+  },
+  {
+   "id": "vagas-abertas",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de vagas abertas?",
+   "indicador": "vagas_abertas",
+   "nome": "Vagas abertas",
+   "indicadores": [
+    "vagas_abertas"
+   ],
+   "recorte": {
+    "indicador": "vagas_abertas",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "vagas-abertas-tecnologia",
+    "historia-vagas-tecnologia"
+   ]
+  },
+  {
+   "id": "vagas-abertas-tecnologia",
+   "grupo": "indicador",
+   "pergunta": "Por que as vagas de Tecnologia se acumulam?",
+   "indicador": "vagas_abertas",
+   "nome": "Vagas abertas",
+   "indicadores": [
+    "vagas_abertas"
+   ],
+   "recorte": {
+    "indicador": "vagas_abertas",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "time-to-fill",
+    "historia-vagas-tecnologia"
+   ]
+  },
+  {
+   "id": "time-to-fill",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de time to fill?",
+   "indicador": "time_to_fill",
+   "nome": "Time to fill",
+   "indicadores": [
+    "time_to_fill"
+   ],
+   "recorte": {
+    "indicador": "time_to_fill",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "time-to-fill-senioridade",
+    "aceite-oferta"
+   ]
+  },
+  {
+   "id": "time-to-fill-senioridade",
+   "grupo": "indicador",
+   "pergunta": "Em que senioridade as vagas demoram mais a fechar?",
+   "indicador": "time_to_fill",
+   "nome": "Time to fill",
+   "indicadores": [
+    "time_to_fill"
+   ],
+   "recorte": {
+    "indicador": "time_to_fill",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "time-to-fill",
+    "historia-vagas-tecnologia"
+   ]
+  },
+  {
+   "id": "aceite-oferta",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de taxa de aceite de oferta?",
+   "indicador": "aceite_oferta",
+   "nome": "Taxa de aceite de oferta",
+   "indicadores": [
+    "aceite_oferta"
+   ],
+   "recorte": {
+    "indicador": "aceite_oferta",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "aceite-oferta-tecnologia",
+    "historia-fuga-tecnologia"
+   ]
+  },
+  {
+   "id": "aceite-oferta-tecnologia",
+   "grupo": "indicador",
+   "pergunta": "Onde as ofertas de Tecnologia mais são recusadas?",
+   "indicador": "aceite_oferta",
+   "nome": "Taxa de aceite de oferta",
+   "indicadores": [
+    "aceite_oferta"
+   ],
+   "recorte": {
+    "indicador": "aceite_oferta",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "aceite-oferta",
+    "vagas-abertas-tecnologia"
+   ]
+  },
+  {
+   "id": "preenchimento-interno",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de % de vagas preenchidas internamente?",
+   "indicador": "preenchimento_interno",
+   "nome": "% de vagas preenchidas internamente",
+   "indicadores": [
+    "preenchimento_interno"
+   ],
+   "recorte": {
+    "indicador": "preenchimento_interno",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "preenchimento-interno-senioridade",
+    "historia-mobilidade-fr"
+   ]
+  },
+  {
+   "id": "preenchimento-interno-senioridade",
+   "grupo": "indicador",
+   "pergunta": "Em que senioridade as vagas são preenchidas por gente de dentro?",
+   "indicador": "preenchimento_interno",
+   "nome": "% de vagas preenchidas internamente",
+   "indicadores": [
+    "preenchimento_interno"
+   ],
+   "recorte": {
+    "indicador": "preenchimento_interno",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "preenchimento-interno",
+    "mobilidade-interna"
+   ]
+  },
+  {
+   "id": "custo-por-contratacao",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de custo por contratação?",
+   "indicador": "custo_por_contratacao",
+   "nome": "Custo por contratação",
+   "indicadores": [
+    "custo_por_contratacao"
+   ],
+   "recorte": {
+    "indicador": "custo_por_contratacao",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "custo-por-contratacao-senioridade",
+    "admissoes"
+   ]
+  },
+  {
+   "id": "custo-por-contratacao-senioridade",
+   "grupo": "indicador",
+   "pergunta": "Quanto custa contratar em cada senioridade?",
+   "indicador": "custo_por_contratacao",
+   "nome": "Custo por contratação",
+   "indicadores": [
+    "custo_por_contratacao"
+   ],
+   "recorte": {
+    "indicador": "custo_por_contratacao",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "custo-por-contratacao",
+    "time-to-fill"
+   ]
+  },
+  {
+   "id": "enps",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de eNPS?",
+   "indicador": "enps",
+   "nome": "eNPS",
+   "indicadores": [
+    "enps"
+   ],
+   "recorte": {
+    "indicador": "enps",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "enps-saidas",
+    "historia-enps-operacoes"
+   ]
+  },
+  {
+   "id": "enps-saidas",
+   "grupo": "indicador",
+   "pergunta": "Quem dá nota baixa no eNPS sai mais?",
+   "indicador": "enps",
+   "nome": "eNPS",
+   "indicadores": [
+    "enps"
+   ],
+   "recorte": {
+    "indicador": "enps",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "enps",
+    "historia-enps-operacoes"
+   ]
+  },
+  {
+   "id": "absenteismo",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de absenteísmo?",
+   "indicador": "absenteismo",
+   "nome": "Absenteísmo",
+   "indicadores": [
+    "absenteismo"
+   ],
+   "recorte": {
+    "indicador": "absenteismo",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "absenteismo-custo",
+    "historia-vagas-tecnologia"
+   ]
+  },
+  {
+   "id": "absenteismo-custo",
+   "grupo": "indicador",
+   "pergunta": "Quanto custa o absenteísmo?",
+   "indicador": "absenteismo",
+   "nome": "Absenteísmo",
+   "indicadores": [
+    "absenteismo"
+   ],
+   "recorte": {
+    "indicador": "absenteismo",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "absenteismo",
+    "horas-extras-pc-custo"
+   ]
+  },
+  {
+   "id": "horas-extras-pc",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de horas extras per capita?",
+   "indicador": "horas_extras_pc",
+   "nome": "Horas extras per capita",
+   "indicadores": [
+    "horas_extras_pc"
+   ],
+   "recorte": {
+    "indicador": "horas_extras_pc",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "horas-extras-pc-custo",
+    "historia-vagas-tecnologia"
+   ]
+  },
+  {
+   "id": "horas-extras-pc-custo",
+   "grupo": "indicador",
+   "pergunta": "Quanto custam as horas extras e onde se concentram?",
+   "indicador": "horas_extras_pc",
+   "nome": "Horas extras per capita",
+   "indicadores": [
+    "horas_extras_pc"
+   ],
+   "recorte": {
+    "indicador": "horas_extras_pc",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "horas-extras-pc",
+    "historia-vagas-tecnologia"
+   ]
+  },
+  {
+   "id": "taxa-promocao",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de taxa de promoção?",
+   "indicador": "taxa_promocao",
+   "nome": "Taxa de promoção",
+   "indicadores": [
+    "taxa_promocao"
+   ],
+   "recorte": {
+    "indicador": "taxa_promocao",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "taxa-promocao-perfil",
+    "historia-teto-de-vidro"
+   ]
+  },
+  {
+   "id": "taxa-promocao-perfil",
+   "grupo": "indicador",
+   "pergunta": "Em que senioridade e performance as promoções se concentram?",
+   "indicador": "taxa_promocao",
+   "nome": "Taxa de promoção",
+   "indicadores": [
+    "taxa_promocao"
+   ],
+   "recorte": {
+    "indicador": "taxa_promocao",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "taxa-promocao",
+    "historia-teto-de-vidro"
+   ]
+  },
+  {
+   "id": "mobilidade-interna",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de mobilidade interna?",
+   "indicador": "mobilidade_interna",
+   "nome": "Mobilidade interna",
+   "indicadores": [
+    "mobilidade_interna"
+   ],
+   "recorte": {
+    "indicador": "mobilidade_interna",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "mobilidade-interna-retencao",
+    "historia-mobilidade-fr"
+   ]
+  },
+  {
+   "id": "mobilidade-interna-retencao",
+   "grupo": "indicador",
+   "pergunta": "A mobilidade interna reduz o turnover voluntário?",
+   "indicador": "mobilidade_interna",
+   "nome": "Mobilidade interna",
+   "indicadores": [
+    "mobilidade_interna"
+   ],
+   "recorte": {
+    "indicador": "mobilidade_interna",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "mobilidade-interna",
+    "historia-mobilidade-fr"
+   ]
+  },
+  {
+   "id": "mulheres",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de mulheres no quadro?",
+   "indicador": "mulheres",
+   "nome": "Mulheres no quadro",
+   "indicadores": [
+    "mulheres"
+   ],
+   "recorte": {
+    "indicador": "mulheres",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "mulheres-queda",
+    "historia-teto-de-vidro"
+   ]
+  },
+  {
+   "id": "mulheres-queda",
+   "grupo": "indicador",
+   "pergunta": "Por que a participação de mulheres no quadro está caindo?",
+   "indicador": "mulheres",
+   "nome": "Mulheres no quadro",
+   "indicadores": [
+    "mulheres"
+   ],
+   "recorte": {
+    "indicador": "mulheres",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "mulheres",
+    "mulheres-lideranca"
+   ]
+  },
+  {
+   "id": "mulheres-lideranca",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de mulheres na liderança?",
+   "indicador": "mulheres_lideranca",
+   "nome": "Mulheres na liderança",
+   "indicadores": [
+    "mulheres_lideranca"
+   ],
+   "recorte": {
+    "indicador": "mulheres_lideranca",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "historia-teto-de-vidro",
+    "mulheres-lideranca-evolucao"
+   ]
+  },
+  {
+   "id": "mulheres-lideranca-evolucao",
+   "grupo": "indicador",
+   "pergunta": "A liderança feminina avançou nos últimos dois anos?",
+   "indicador": "mulheres_lideranca",
+   "nome": "Mulheres na liderança",
+   "indicadores": [
+    "mulheres_lideranca"
+   ],
+   "recorte": {
+    "indicador": "mulheres_lideranca",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "mulheres-lideranca",
+    "historia-teto-de-vidro"
+   ]
+  },
+  {
+   "id": "negros",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de pessoas negras no quadro?",
+   "indicador": "negros",
+   "nome": "Pessoas negras no quadro",
+   "indicadores": [
+    "negros"
+   ],
+   "recorte": {
+    "indicador": "negros",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "negros-contratacao",
+    "negros-lideranca"
+   ]
+  },
+  {
+   "id": "negros-contratacao",
+   "grupo": "indicador",
+   "pergunta": "A contratação está mudando a composição racial do quadro?",
+   "indicador": "negros",
+   "nome": "Pessoas negras no quadro",
+   "indicadores": [
+    "negros"
+   ],
+   "recorte": {
+    "indicador": "negros",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "negros",
+    "negros-lideranca-evolucao"
+   ]
+  },
+  {
+   "id": "negros-lideranca",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de pessoas negras na liderança?",
+   "indicador": "negros_lideranca",
+   "nome": "Pessoas negras na liderança",
+   "indicadores": [
+    "negros_lideranca"
+   ],
+   "recorte": {
+    "indicador": "negros_lideranca",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "negros-lideranca-evolucao",
+    "negros"
+   ]
+  },
+  {
+   "id": "negros-lideranca-evolucao",
+   "grupo": "indicador",
+   "pergunta": "A liderança negra melhorou nos últimos dois anos?",
+   "indicador": "negros_lideranca",
+   "nome": "Pessoas negras na liderança",
+   "indicadores": [
+    "negros_lideranca"
+   ],
+   "recorte": {
+    "indicador": "negros_lideranca",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "negros-lideranca",
+    "mulheres-lideranca-evolucao"
+   ]
+  },
+  {
+   "id": "pcd",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de pessoas com deficiência?",
+   "indicador": "pcd",
+   "nome": "Pessoas com deficiência",
+   "indicadores": [
+    "pcd"
+   ],
+   "recorte": {
+    "indicador": "pcd",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "pcd-cota",
+    "negros"
+   ]
+  },
+  {
+   "id": "pcd-cota",
+   "grupo": "indicador",
+   "pergunta": "Quanto falta para a cota legal de pessoas com deficiência?",
+   "indicador": "pcd",
+   "nome": "Pessoas com deficiência",
+   "indicadores": [
+    "pcd"
+   ],
+   "recorte": {
+    "indicador": "pcd",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "pcd",
+    "mulheres-lideranca"
+   ]
+  },
+  {
+   "id": "gap-salarial-genero",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de gap salarial de gênero ajustado?",
+   "indicador": "gap_salarial_genero",
+   "nome": "Gap salarial de gênero ajustado",
+   "indicadores": [
+    "gap_salarial_genero"
+   ],
+   "recorte": {
+    "indicador": "gap_salarial_genero",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "gap-salarial-genero-tempo-casa",
+    "historia-teto-de-vidro"
+   ]
+  },
+  {
+   "id": "gap-salarial-genero-tempo-casa",
+   "grupo": "indicador",
+   "pergunta": "Em que tempo de casa o gap salarial de gênero é maior?",
+   "indicador": "gap_salarial_genero",
+   "nome": "Gap salarial de gênero ajustado",
+   "indicadores": [
+    "gap_salarial_genero"
+   ],
+   "recorte": {
+    "indicador": "gap_salarial_genero",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "gap-salarial-genero",
+    "mulheres-lideranca"
+   ]
+  },
+  {
+   "id": "folha",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de folha mensal?",
+   "indicador": "folha",
+   "nome": "Folha mensal",
+   "indicadores": [
+    "folha"
+   ],
+   "recorte": {
+    "indicador": "folha",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "folha-senioridade",
+    "custo-turnover"
+   ]
+  },
+  {
+   "id": "folha-senioridade",
+   "grupo": "indicador",
+   "pergunta": "Como a folha se distribui por senioridade?",
+   "indicador": "folha",
+   "nome": "Folha mensal",
+   "indicadores": [
+    "folha"
+   ],
+   "recorte": {
+    "indicador": "folha",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "folha",
+    "headcount"
+   ]
+  },
+  {
+   "id": "custo-turnover",
+   "grupo": "influencia",
+   "pergunta": "O que influenciou o resultado de custo estimado do turnover?",
+   "indicador": "custo_turnover",
+   "nome": "Custo estimado do turnover",
+   "indicadores": [
+    "custo_turnover"
+   ],
+   "recorte": {
+    "indicador": "custo_turnover",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "custo-turnover-tipo",
+    "historia-janeiro-da"
+   ]
+  },
+  {
+   "id": "custo-turnover-tipo",
+   "grupo": "indicador",
+   "pergunta": "Que tipo de saída mais pesa no custo do turnover?",
+   "indicador": "custo_turnover",
+   "nome": "Custo estimado do turnover",
+   "indicadores": [
+    "custo_turnover"
+   ],
+   "recorte": {
+    "indicador": "custo_turnover",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "custo-turnover",
+    "turnover-voluntario-custo"
+   ]
+  },
+  {
+   "id": "historia-fuga-tecnologia",
+   "grupo": "historia",
+   "pergunta": "Por que estamos perdendo talento em Tecnologia?",
+   "indicador": "turnover_lamentado",
+   "nome": "Turnover lamentado",
+   "indicadores": [
+    "turnover_voluntario",
+    "turnover",
+    "aceite_oferta"
+   ],
+   "recorte": {
+    "indicador": "turnover_lamentado",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Tecnologia"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "turnover-voluntario",
+    "aceite-oferta-tecnologia"
+   ]
+  },
+  {
+   "id": "historia-janeiro-da",
+   "grupo": "historia",
+   "pergunta": "Por que as saídas disparam todo janeiro em Distribuição & Assessoria?",
+   "indicador": "turnover",
+   "nome": "Turnover total",
+   "indicadores": [
+    "turnover",
+    "turnover_involuntario",
+    "custo_turnover"
+   ],
+   "recorte": {
+    "indicador": "turnover",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Distribuição & Assessoria"
+    },
+    "ponto": {
+     "mes": "2026-01"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "turnover-involuntario-janeiro",
+    "custo-turnover"
+   ]
+  },
+  {
+   "id": "historia-operacoes",
+   "grupo": "historia",
+   "pergunta": "Por que o turnover de Operações escalou?",
+   "indicador": "turnover_voluntario",
+   "nome": "Turnover voluntário",
+   "indicadores": [
+    "turnover",
+    "turnover_voluntario",
+    "enps",
+    "span_controle"
+   ],
+   "recorte": {
+    "indicador": "turnover_voluntario",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Operações"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "historia-enps-operacoes",
+    "turnover-voluntario"
+   ]
+  },
+  {
+   "id": "historia-enps-operacoes",
+   "grupo": "historia",
+   "pergunta": "O eNPS antecipou o turnover em Operações?",
+   "indicador": "enps",
+   "nome": "eNPS",
+   "indicadores": [
+    "enps",
+    "turnover_voluntario"
+   ],
+   "recorte": {
+    "indicador": "enps",
+    "periodo": {
+     "inicio": "2024-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Operações"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "enps-saidas",
+    "historia-operacoes"
+   ]
+  },
+  {
+   "id": "historia-vagas-tecnologia",
+   "grupo": "historia",
+   "pergunta": "Por que as horas extras de Tecnologia subiram?",
+   "indicador": "horas_extras_pc",
+   "nome": "Horas extras per capita",
+   "indicadores": [
+    "vagas_abertas",
+    "time_to_fill",
+    "horas_extras_pc",
+    "absenteismo"
+   ],
+   "recorte": {
+    "indicador": "horas_extras_pc",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Tecnologia"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "horas-extras-pc-custo",
+    "resumo-horas-extras-absenteismo"
+   ]
+  },
+  {
+   "id": "historia-teto-de-vidro",
+   "grupo": "historia",
+   "pergunta": "Por que há tão poucas mulheres na liderança?",
+   "indicador": "mulheres_lideranca",
+   "nome": "Mulheres na liderança",
+   "indicadores": [
+    "mulheres_lideranca",
+    "mulheres",
+    "taxa_promocao",
+    "gap_salarial_genero"
+   ],
+   "recorte": {
+    "indicador": "mulheres_lideranca",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "mulheres-lideranca",
+    "gap-salarial-genero"
+   ]
+  },
+  {
+   "id": "historia-onboarding-produtos",
+   "grupo": "historia",
+   "pergunta": "Por que tanta gente sai no primeiro ano em Produtos & Plataforma?",
+   "indicador": "early_attrition",
+   "nome": "Early attrition",
+   "indicadores": [
+    "early_attrition",
+    "admissoes"
+   ],
+   "recorte": {
+    "indicador": "early_attrition",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Produtos & Plataforma"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "early-attrition-onboarding",
+    "resumo-custo-turnover-produtos"
+   ]
+  },
+  {
+   "id": "historia-mobilidade-fr",
+   "grupo": "historia",
+   "pergunta": "A mobilidade interna ajuda a reter talentos em Financeiro & Risco?",
+   "indicador": "mobilidade_interna",
+   "nome": "Mobilidade interna",
+   "indicadores": [
+    "mobilidade_interna",
+    "preenchimento_interno",
+    "turnover_voluntario"
+   ],
+   "recorte": {
+    "indicador": "mobilidade_interna",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Financeiro & Risco"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "mobilidade-interna-retencao",
+    "resumo-mobilidade-fr-replicar"
+   ]
+  },
+  {
+   "id": "resumo-early-attrition-produtos",
+   "grupo": "resumo",
+   "pergunta": "O que explica o salto do early attrition em Produtos & Plataforma a partir de Abr/25?",
+   "indicador": "early_attrition",
+   "nome": "Early attrition",
+   "indicadores": [
+    "early_attrition"
+   ],
+   "recorte": {
+    "indicador": "early_attrition",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Produtos & Plataforma"
+    },
+    "lente": "ceo"
+   },
+   "continuacoes": [
+    "historia-onboarding-produtos",
+    "resumo-custo-turnover-produtos"
+   ],
+   "lentes": [
+    "ceo",
+    "gestor"
+   ]
+  },
+  {
+   "id": "resumo-custo-turnover-da",
+   "grupo": "resumo",
+   "pergunta": "Por que o custo do turnover em Distribuição & Assessoria atinge R$ 4.636.200 em Jan/26?",
+   "indicador": "custo_turnover",
+   "nome": "Custo estimado do turnover",
+   "indicadores": [
+    "custo_turnover"
+   ],
+   "recorte": {
+    "indicador": "custo_turnover",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Distribuição & Assessoria"
+    },
+    "ponto": {
+     "mes": "2026-01"
+    },
+    "lente": "ceo"
+   },
+   "continuacoes": [
+    "historia-janeiro-da",
+    "resumo-pico-janeiro-mitigar"
+   ],
+   "lentes": [
+    "ceo"
+   ]
+  },
+  {
+   "id": "resumo-enps-operacoes-reverter",
+   "grupo": "resumo",
+   "pergunta": "Como reverter a queda do eNPS em Operações, que chegou a -38 no 3T26?",
+   "indicador": "enps",
+   "nome": "eNPS",
+   "indicadores": [
+    "enps"
+   ],
+   "recorte": {
+    "indicador": "enps",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Operações"
+    },
+    "lente": "ceo"
+   },
+   "continuacoes": [
+    "historia-enps-operacoes",
+    "resumo-enps-operacoes-acoes"
+   ],
+   "lentes": [
+    "ceo"
+   ]
+  },
+  {
+   "id": "resumo-enps-antecipa-turnover",
+   "grupo": "resumo",
+   "pergunta": "A queda do eNPS em Operações antecipa novo aumento do turnover voluntário?",
+   "indicador": "turnover_voluntario",
+   "nome": "Turnover voluntário",
+   "indicadores": [
+    "turnover_voluntario"
+   ],
+   "recorte": {
+    "indicador": "turnover_voluntario",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Operações"
+    },
+    "lente": "ceo"
+   },
+   "continuacoes": [
+    "historia-enps-operacoes",
+    "enps-saidas"
+   ],
+   "lentes": [
+    "ceo"
+   ]
+  },
+  {
+   "id": "resumo-early-attrition-gente",
+   "grupo": "resumo",
+   "pergunta": "O que Gente faz para manter o early attrition em 10,9% a.a.?",
+   "indicador": "early_attrition",
+   "nome": "Early attrition",
+   "indicadores": [
+    "early_attrition"
+   ],
+   "recorte": {
+    "indicador": "early_attrition",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Gente"
+    },
+    "lente": "ceo"
+   },
+   "continuacoes": [
+    "early-attrition-onboarding",
+    "historia-onboarding-produtos"
+   ],
+   "lentes": [
+    "ceo"
+   ]
+  },
+  {
+   "id": "resumo-early-attrition-quebra",
+   "grupo": "resumo",
+   "pergunta": "O que explica a quebra de tendência do early attrition em Produtos & Plataforma a partir de Abr/25?",
+   "indicador": "early_attrition",
+   "nome": "Early attrition",
+   "indicadores": [
+    "early_attrition"
+   ],
+   "recorte": {
+    "indicador": "early_attrition",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Produtos & Plataforma"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "historia-onboarding-produtos",
+    "early-attrition-onboarding"
+   ],
+   "lentes": [
+    "chro"
+   ]
+  },
+  {
+   "id": "resumo-enps-operacoes-alavancas",
+   "grupo": "resumo",
+   "pergunta": "Quais alavancas de política de pessoas podem reverter o eNPS de Operações após 1T25?",
+   "indicador": "enps",
+   "nome": "eNPS",
+   "indicadores": [
+    "enps"
+   ],
+   "recorte": {
+    "indicador": "enps",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Operações"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "historia-operacoes",
+    "resumo-enps-operacoes-acoes"
+   ],
+   "lentes": [
+    "chro"
+   ]
+  },
+  {
+   "id": "resumo-custo-turnover-produtos",
+   "grupo": "resumo",
+   "pergunta": "Como conter a alta do custo estimado do turnover em Produtos & Plataforma desde Jul/25?",
+   "indicador": "custo_turnover",
+   "nome": "Custo estimado do turnover",
+   "indicadores": [
+    "custo_turnover"
+   ],
+   "recorte": {
+    "indicador": "custo_turnover",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Produtos & Plataforma"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "historia-onboarding-produtos",
+    "custo-turnover-tipo"
+   ],
+   "lentes": [
+    "chro"
+   ]
+  },
+  {
+   "id": "resumo-time-to-fill-tecnologia",
+   "grupo": "resumo",
+   "pergunta": "Que ações reduzem o time to fill de Tecnologia, hoje em 88 dias?",
+   "indicador": "time_to_fill",
+   "nome": "Time to fill",
+   "indicadores": [
+    "time_to_fill"
+   ],
+   "recorte": {
+    "indicador": "time_to_fill",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Tecnologia"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "historia-vagas-tecnologia",
+    "aceite-oferta-tecnologia"
+   ],
+   "lentes": [
+    "chro"
+   ]
+  },
+  {
+   "id": "resumo-pico-janeiro-da",
+   "grupo": "resumo",
+   "pergunta": "O pico de turnover total em Distribuição & Assessoria em Jan/26 é sazonal ou estrutural?",
+   "indicador": "turnover",
+   "nome": "Turnover total",
+   "indicadores": [
+    "turnover"
+   ],
+   "recorte": {
+    "indicador": "turnover",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Distribuição & Assessoria"
+    },
+    "ponto": {
+     "mes": "2026-01"
+    },
+    "lente": "chro"
+   },
+   "continuacoes": [
+    "historia-janeiro-da",
+    "resumo-pico-janeiro-mitigar"
+   ],
+   "lentes": [
+    "chro"
+   ]
+  },
+  {
+   "id": "resumo-mobilidade-fr-replicar",
+   "grupo": "resumo",
+   "pergunta": "Como replicar a mobilidade interna de 13,2% a.a. de Financeiro & Risco no meu time?",
+   "indicador": "mobilidade_interna",
+   "nome": "Mobilidade interna",
+   "indicadores": [
+    "mobilidade_interna"
+   ],
+   "recorte": {
+    "indicador": "mobilidade_interna",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Financeiro & Risco"
+    },
+    "lente": "gestor"
+   },
+   "continuacoes": [
+    "historia-mobilidade-fr",
+    "mobilidade-interna-retencao"
+   ],
+   "lentes": [
+    "gestor"
+   ]
+  },
+  {
+   "id": "resumo-enps-operacoes-acoes",
+   "grupo": "resumo",
+   "pergunta": "Quais ações práticas podem reverter o eNPS de -47 em Operações?",
+   "indicador": "enps",
+   "nome": "eNPS",
+   "indicadores": [
+    "enps"
+   ],
+   "recorte": {
+    "indicador": "enps",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Operações"
+    },
+    "lente": "gestor"
+   },
+   "continuacoes": [
+    "resumo-enps-operacoes-alavancas",
+    "historia-operacoes"
+   ],
+   "lentes": [
+    "gestor"
+   ]
+  },
+  {
+   "id": "resumo-pico-janeiro-mitigar",
+   "grupo": "resumo",
+   "pergunta": "Como mitigar o pico sazonal de turnover total em Distribuição & Assessoria em Jan/26?",
+   "indicador": "turnover",
+   "nome": "Turnover total",
+   "indicadores": [
+    "turnover"
+   ],
+   "recorte": {
+    "indicador": "turnover",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Distribuição & Assessoria"
+    },
+    "ponto": {
+     "mes": "2026-01"
+    },
+    "lente": "gestor"
+   },
+   "continuacoes": [
+    "historia-janeiro-da",
+    "resumo-pico-janeiro-da"
+   ],
+   "lentes": [
+    "gestor"
+   ]
+  },
+  {
+   "id": "resumo-horas-extras-absenteismo",
+   "grupo": "resumo",
+   "pergunta": "A alta de horas extras em Tecnologia antecipa aumento de absenteísmo no meu time?",
+   "indicador": "absenteismo",
+   "nome": "Absenteísmo",
+   "indicadores": [
+    "absenteismo"
+   ],
+   "recorte": {
+    "indicador": "absenteismo",
+    "periodo": {
+     "inicio": "2025-10",
+     "fim": "2026-09"
+    },
+    "filtros": {
+     "diretoria": "Tecnologia"
+    },
+    "lente": "gestor"
+   },
+   "continuacoes": [
+    "historia-vagas-tecnologia",
+    "absenteismo-custo"
+   ],
+   "lentes": [
+    "gestor"
+   ]
+  }
+ ]
+}
