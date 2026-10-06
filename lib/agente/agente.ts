@@ -53,7 +53,10 @@ export interface MetricasAgente {
   /** provedor que respondeu cada pedido */
   provedores: NomeProvedor[];
   uso: Uso;
+  /** primeiro texto de qualquer rodada (inclui a frase que o modelo às vezes escreve antes das tools) */
   latenciaPrimeiroTextoMs: number | null;
+  /** primeiro texto da rodada que deu a resposta final */
+  latenciaRespostaMs: number | null;
   latenciaTotalMs: number;
   ferramentas: Array<{ nome: string; ok: boolean; duracaoMs: number }>;
   blocos: number;
@@ -89,11 +92,12 @@ export async function executarAgente(entrada: EntradaAgente, opcoes: OpcoesAgent
     ...entrada.mensagens.map((m): MensagemLLM => ({ role: m.papel === 'usuario' ? 'user' : 'assistant', content: m.conteudo })),
   ];
   const metricas: MetricasAgente = {
-    rodadas: 0, rodadasFerramentas: 0, provedores: [], uso: { entrada: 0, saida: 0, cacheEntrada: 0 },
-    latenciaPrimeiroTextoMs: null, latenciaTotalMs: 0, ferramentas: [], blocos: 0, texto: '', verificacao: null,
+    rodadas: 0, rodadasFerramentas: 0, provedores: [], uso: { entrada: 0, saida: 0, cacheEntrada: 0, raciocinio: 0 },
+    latenciaPrimeiroTextoMs: null, latenciaRespostaMs: null, latenciaTotalMs: 0, ferramentas: [], blocos: 0, texto: '', verificacao: null,
   };
   let provedores = [...opcoes.provedores];
   let separar = false;
+  let primeiroTextoDaRodada: number | null = null;
   const aoTexto = (delta: string) => {
     if (separar && metricas.texto) {
       metricas.texto += '\n\n';
@@ -101,13 +105,15 @@ export async function executarAgente(entrada: EntradaAgente, opcoes: OpcoesAgent
     }
     separar = false;
     metricas.texto += delta;
-    metricas.latenciaPrimeiroTextoMs ??= Date.now() - inicio;
+    primeiroTextoDaRodada ??= Date.now() - inicio;
+    metricas.latenciaPrimeiroTextoMs ??= primeiroTextoDaRodada;
     opcoes.emitir({ tipo: 'texto', delta });
   };
 
   try {
     for (;;) {
       const forcarTexto = metricas.rodadasFerramentas >= MAX_RODADAS_FERRAMENTAS;
+      primeiroTextoDaRodada = null;
       const r = await chamarLLM(
         { mensagens, ferramentas: DEFINICOES_FERRAMENTAS, escolhaFerramenta: forcarTexto ? 'none' : 'auto', maxTokens: MAX_TOKENS_RESPOSTA },
         { provedores, fetch: opcoes.fetch, aoTexto, sinal: opcoes.sinal, timeoutMs: opcoes.timeoutMs, log },
@@ -117,9 +123,13 @@ export async function executarAgente(entrada: EntradaAgente, opcoes: OpcoesAgent
       metricas.uso.entrada += r.uso.entrada;
       metricas.uso.saida += r.uso.saida;
       metricas.uso.cacheEntrada += r.uso.cacheEntrada;
+      metricas.uso.raciocinio += r.uso.raciocinio;
       // quem respondeu passa a ser o primeiro da fila nas próximas rodadas
       provedores = [...provedores.filter(p => p.nome === r.provedor), ...provedores.filter(p => p.nome !== r.provedor)];
-      if (forcarTexto || r.chamadas.length === 0) break;
+      if (forcarTexto || r.chamadas.length === 0) {
+        metricas.latenciaRespostaMs = primeiroTextoDaRodada;
+        break;
+      }
 
       mensagens.push({ role: 'assistant', content: r.texto || null, tool_calls: r.chamadas });
       if (r.texto) separar = true;

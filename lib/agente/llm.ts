@@ -61,6 +61,8 @@ export interface Uso {
   saida: number;
   /** tokens de entrada servidos do cache de prefixo (mais baratos) */
   cacheEntrada: number;
+  /** tokens de raciocínio (devem ficar em 0: o raciocínio está desligado) */
+  raciocinio: number;
 }
 
 export interface Tentativa {
@@ -145,13 +147,19 @@ interface DeltaChunk {
     delta?: { content?: string | null; tool_calls?: Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }> };
     finish_reason?: string | null;
   }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_cache_hit_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    prompt_cache_hit_tokens?: number;
+    prompt_tokens_details?: { cached_tokens?: number };
+    completion_tokens_details?: { reasoning_tokens?: number };
+  };
   error?: unknown;
 }
 
 /** Lê o SSE da API de chat; `aoChunk` rearma o timeout a cada pedaço recebido */
 async function lerStream(corpo: ReadableStream<Uint8Array>, aoTexto: (d: string) => void, aoChunk: () => void): Promise<Acumulado> {
-  const acc: Acumulado = { texto: '', chamadas: [], motivoFim: null, uso: { entrada: 0, saida: 0, cacheEntrada: 0 } };
+  const acc: Acumulado = { texto: '', chamadas: [], motivoFim: null, uso: { entrada: 0, saida: 0, cacheEntrada: 0, raciocinio: 0 } };
   const leitor = corpo.getReader();
   const decodificador = new TextDecoder();
   let buffer = '';
@@ -192,6 +200,7 @@ async function lerStream(corpo: ReadableStream<Uint8Array>, aoTexto: (d: string)
           entrada: chunk.usage.prompt_tokens ?? 0,
           saida: chunk.usage.completion_tokens ?? 0,
           cacheEntrada: chunk.usage.prompt_cache_hit_tokens ?? chunk.usage.prompt_tokens_details?.cached_tokens ?? 0,
+          raciocinio: chunk.usage.completion_tokens_details?.reasoning_tokens ?? 0,
         };
       }
     }
@@ -260,7 +269,7 @@ export async function chamarLLM(pedido: PedidoLLM, opcoes: OpcoesLLM): Promise<R
       );
       const latenciaMs = Date.now() - inicio;
       tentativas.push({ provedor: p.nome, ok: true, status, latenciaMs });
-      log(`[llm] ${p.nome} ok: HTTP ${status} em ${latenciaMs} ms (${acc.uso.entrada} tokens de entrada, ${acc.uso.cacheEntrada} em cache, ${acc.uso.saida} de saída)`);
+      log(`[llm] ${p.nome} ok: HTTP ${status} em ${latenciaMs} ms (tokens: ${acc.uso.entrada} entrada, ${acc.uso.cacheEntrada} em cache, ${acc.uso.saida} saída, ${acc.uso.raciocinio} raciocínio)`);
       return { ...acc, chamadas: acc.chamadas.filter(Boolean), provedor: p.nome, latenciaMs, tentativas };
     } catch (e) {
       if (opcoes.sinal?.aborted) throw e;
