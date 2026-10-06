@@ -66,13 +66,13 @@ export interface PedidoCapturado {
   cabecalhos: Record<string, string>;
 }
 
-type Proxima = Response | ((p: PedidoCapturado, init: RequestInit) => Response | Promise<Response>);
+export type RespostaFalsa = Response | ((p: PedidoCapturado, init: RequestInit) => Response | Promise<Response>);
 
 /**
  * fetch falso: cada chamada consome a próxima resposta da fila (ou chama a função com o pedido).
  * Guarda os pedidos para asserções e respeita o AbortSignal como o fetch real.
  */
-export function fetchFalso(fila: Proxima[]) {
+export function fetchFalso(fila: RespostaFalsa[]) {
   const pedidos: PedidoCapturado[] = [];
   const fn = vi.fn(async (url: string | URL | Request, init: RequestInit = {}) => {
     const pedido: PedidoCapturado = {
