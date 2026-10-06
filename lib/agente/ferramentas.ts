@@ -338,7 +338,7 @@ function rotuloDe(nome: string, args: unknown): string {
     case 'cruzar': return `Cruzando ${ind} por ${dim(a.dimensoes?.[0])} e ${dim(a.dimensoes?.[1])}`;
     case 'comparar': return `Comparando ${ind}: ${recorte(a.a?.periodo, a.a?.filtros)} × ${recorte(a.b?.periodo, a.b?.filtros)}`;
     case 'drivers': return `Buscando fatores de risco e de proteção de ${ind}`;
-    case 'impacto': return `Estimando o custo de ${ind}`;
+    case 'impacto': return ind.startsWith('Custo') ? `Calculando ${ind}` : `Estimando o custo de ${ind}`;
     case 'sinais': return `Procurando sinais em ${a.diretoria ?? 'toda a empresa'}`;
     case 'mostrar': return 'Montando a visualização';
     default: return `Consultando ${nome}`;
