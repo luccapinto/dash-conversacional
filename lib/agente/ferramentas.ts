@@ -146,7 +146,9 @@ function resumoValor(id: string, d: ResultadoValor) {
     status: d.status,
     n: d.n,
     ...(eventos !== null ? { eventos } : {}),
-    ...(d.meta !== null && d.valor !== null ? { distanciaDaMeta: arred(d.valor - d.meta), unidadeDistancia: unidadeDiferenca(d.unidade) } : {}),
+    ...(d.meta !== null && d.valor !== null
+      ? { distanciaDaMeta: arred(d.valor - d.meta), unidadeDistancia: unidadeDiferenca(d.unidade), ...(d.meta > 0 && d.valor > 0 ? { razaoMeta: arred(d.valor / d.meta) } : {}) }
+      : {}),
     ...(d.amostraSuficiente ? {} : { aviso: `amostra abaixo de ${d.rastreio.amostraMinima}: leitura frágil` }),
   };
 }

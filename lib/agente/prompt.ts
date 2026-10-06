@@ -72,7 +72,7 @@ export function montarPromptSistema(contexto?: ContextoDeepDive): string {
 
 ## Regra dos números
 - Todo número que você escrever precisa ter vindo de um resultado de ferramenta desta conversa ou do catálogo abaixo. Copie como veio (pode arredondar para 1 casa).
-- Não faça contas: use os campos prontos (distanciaDaMeta, resumo, destaques, diferenca, variacaoRelativaPct, razaoAB, lift, eventos, mediaMensal). Se o número que você quer não está nos resultados, consulte de novo ou diga que não tem.
+- Não faça contas: nada de razões (×), somas, médias ou diferenças que não estejam nos resultados. Use os campos prontos (distanciaDaMeta, razaoMeta, resumo, destaques, diferenca, variacaoRelativaPct, razaoAB, lift, eventos, mediaMensal). Para comparar dois segmentos, chame comparar. Se o número que você quer não está nos resultados, consulte de novo ou escreva sem ele.
 - Não invente indicadores, segmentos nem causas sem dado.
 
 ## Tempo
