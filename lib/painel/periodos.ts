@@ -59,6 +59,11 @@ export function periodoSinais(mes: Mes): Periodo {
   return { inicio: inicio < MES_INICIO ? MES_INICIO : inicio, fim: mes };
 }
 
+/** Último mês de fechamento de ciclo de eNPS até o mês (Jan e Fev → Dez do ano anterior) */
+export function cicloAte(mes: Mes): Mes {
+  return somarMeses(mes, -(mesDoAno(mes) % 3));
+}
+
 function janelaDoMes(tipo: TipoMes, fim: Mes): Janela | null {
   if (tipo === 'mes') return fim < MES_INICIO ? null : { periodo: { inicio: fim, fim }, rotulo: rotuloMes(fim) };
   if (tipo === 'trimestre') return fim < CICLOS_ENPS[0] ? null : { periodo: { inicio: somarMeses(fim, -2), fim }, rotulo: rotuloTrimestre(fim) };
@@ -76,7 +81,7 @@ function janelaYtd(inicioAno: Mes, fim: Mes): Janela | null {
 export function janelas(ind: Pick<Indicador, 'id' | 'granularidade'>, mes: Mes): Janelas {
   const tipoMes: TipoMes = ind.granularidade === 'trimestral' ? 'trimestre' : INDICADORES_CICLO.includes(ind.id) ? 'doze_meses' : 'mes';
   // fim da janela do "mês": no eNPS, o último mês de ciclo até o mês selecionado
-  const fim = tipoMes === 'trimestre' ? somarMeses(mes, -(mesDoAno(mes) % 3)) : mes;
+  const fim = tipoMes === 'trimestre' ? cicloAte(mes) : mes;
   const passo = tipoMes === 'trimestre' ? 3 : 1;
   const ano = mes.slice(0, 4);
   const anoAnterior = String(Number(ano) - 1);

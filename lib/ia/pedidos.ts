@@ -5,10 +5,10 @@
  */
 
 import type { IdIndicador } from '@/lib/analytics/catalog';
-import { mesDoAno, rotuloMes, somarMeses } from '@/lib/analytics/dominio';
+import { rotuloMes } from '@/lib/analytics/dominio';
 import type { ContextoDeepDive } from '@/lib/agente/contrato';
 import { filtrosDoMotor, lenteDe, type FiltrosPainel } from '@/lib/painel/filtros';
-import { periodoSinais, rotuloIntervalo, rotuloTrimestre } from '@/lib/painel/periodos';
+import { cicloAte, periodoSinais, rotuloIntervalo, rotuloTrimestre } from '@/lib/painel/periodos';
 
 export interface PedidoIA {
   /** conversa em memória por chave: reabrir o mesmo pedido não gasta de novo */
@@ -45,8 +45,8 @@ export function pedidoDeContexto(contexto: ContextoDeepDive, pergunta: string, n
 /** Botão de IA de uma linha ou da página: "O que influenciou o resultado de <indicador> em <mês>?" */
 export function pedidoDoIndicador(id: IdIndicador, nome: string, trimestral: boolean, f: FiltrosPainel): PedidoIA {
   const periodo = periodoSinais(f.mes);
-  // eNPS: o ponto é o último ciclo fechado até o mês (o mesmo do "mês" do painel)
-  const pontoMes = trimestral ? somarMeses(f.mes, -(mesDoAno(f.mes) % 3)) : f.mes;
+  // eNPS: o ponto é o último ciclo fechado até o mês (a mesma regra do "mês" do painel)
+  const pontoMes = trimestral ? cicloAte(f.mes) : f.mes;
   const ponto = pontoMes >= periodo.inicio ? { ponto: { mes: pontoMes } } : {};
   const filtros = filtrosDoMotor(f);
   const contexto: ContextoDeepDive = {
