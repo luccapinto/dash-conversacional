@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# vídeo de demonstração (scripts/record-demo.mjs); vai como anexo no PR e no README
+/docs/demo/
+
 # next.js
 /.next/
 /out/
