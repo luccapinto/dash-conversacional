@@ -114,7 +114,7 @@ export const TIPOS_BLOCO = ['kpi', 'serie', 'barras', 'tabela', 'comparacao'] as
 export type TipoBloco = (typeof TIPOS_BLOCO)[number];
 
 interface BlocoBase {
-  /** estável: mesma consulta + mesmo tipo → mesmo id (para "fixar no painel" sem duplicar) */
+  /** resultado + tipo: único na resposta (chave da lista e deduplicação) */
   id: string;
   tipo: TipoBloco;
   /** gerado pelo servidor a partir do catálogo e do recorte (sem números) */

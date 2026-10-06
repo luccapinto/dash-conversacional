@@ -131,7 +131,7 @@ describe('execução', () => {
 });
 
 describe('mostrar → blocos de visualização', () => {
-  it('monta cada tipo só a partir do resultado da tool, com rastreio e id estável', async () => {
+  it('monta cada tipo só a partir do resultado da tool, com rastreio e id único na resposta', async () => {
     const sessao = novaSessao();
     const serie = await rodar(sessao, 'serie', { indicador: 'enps', periodo, filtros: { diretoria: 'Operações' } });
     const decompor = await rodar(sessao, 'decompor', { indicador: 'turnover', periodo, dimensao: 'diretoria' });
@@ -153,13 +153,11 @@ describe('mostrar → blocos de visualização', () => {
     expect(bComp.tipo === 'comparacao' && bComp.diferenca).toBe((comparar.dados as { diferenca: number }).diferenca);
     expect(bKpi.tipo === 'kpi' && bKpi.valor).toBe((valor.dados as { valor: number }).valor);
     expect(bSerie.titulo).not.toMatch(/\d/);
-    expect(blocos.every(b => /^v-[a-z0-9]+$/.test(b.id))).toBe(true);
+    expect(new Set(blocos.map(b => b.id)).size).toBe(blocos.length);
 
-    // mesma consulta em outra conversa (filtros em outra ordem) → mesmo id
-    const outra = novaSessao();
-    await rodar(outra, 'serie', { indicador: 'enps', filtros: { diretoria: 'Operações' }, periodo });
-    await rodar(outra, 'mostrar', { blocos: [{ resultado: 'r1' }] });
-    expect(outra.blocos()[0].id).toBe(bSerie.id);
+    // pedir de novo o mesmo resultado no mesmo tipo não repete o bloco
+    await rodar(sessao, 'mostrar', { blocos: [{ resultado: 'r1' }] });
+    expect(sessao.blocos()).toHaveLength(5);
   });
 
   it('o modelo não fornece números: id inexistente, tipo incompatível ou campo extra viram erro, sem bloco', async () => {

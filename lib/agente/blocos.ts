@@ -1,7 +1,7 @@
 /**
  * Blocos de visualização montados pelo SERVIDOR a partir dos resultados das tools. O modelo só
  * escolhe qual resultado (id r1, r2…) e, opcionalmente, o tipo; números, título e rastreio vêm do
- * resultado do motor. Id estável: hash da consulta resolvida + tipo, para "fixar no painel".
+ * resultado do motor. Id: resultado + tipo, único na resposta (chave da lista e deduplicação).
  */
 
 import { CATALOGO } from '@/lib/analytics/catalog';
@@ -43,26 +43,6 @@ export interface ResultadoVisualizavel {
   dados: unknown;
 }
 
-/** JSON com chaves ordenadas: a mesma consulta dá o mesmo texto, qualquer que seja a ordem dos argumentos */
-function jsonCanonico(x: unknown): string {
-  if (Array.isArray(x)) return `[${x.map(jsonCanonico).join(',')}]`;
-  if (x && typeof x === 'object') {
-    const entradas = Object.entries(x).filter(([, v]) => v !== undefined).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entradas.map(([k, v]) => `${JSON.stringify(k)}:${jsonCanonico(v)}`).join(',')}}`;
-  }
-  return JSON.stringify(x);
-}
-
-/** FNV-1a de 32 bits em base 36 */
-function hash(texto: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < texto.length; i++) {
-    h ^= texto.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return (h >>> 0).toString(36);
-}
-
 const NOME_GRANULARIDADE = { mes: 'mês', trimestre: 'trimestre', ano: 'ano' } as const;
 
 /** Fatores que a tabela de drivers mostra antes de "ver todos": cabe na gaveta sem rolar demais */
@@ -86,7 +66,7 @@ export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): B
   const { filtros } = rastreio.parametros as { filtros?: Filtros };
   const efetivo: Periodo = { inicio: rastreio.periodoEfetivo.inicio, fim: rastreio.periodoEfetivo.fim };
   const base = {
-    id: `v-${hash(jsonCanonico([tipo, rastreio.funcao, rastreio.indicador, rastreio.parametros]))}`,
+    id: `${r.id}-${tipo}`,
     indicador: ind.id,
     unidade: ind.unidade,
     resultado: r.id,
