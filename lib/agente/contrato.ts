@@ -171,8 +171,11 @@ export interface BlocoBarras extends BlocoBase {
 export interface ColunaTabela {
   chave: string;
   rotulo: string;
-  /** unidade dos valores numéricos da coluna (ausente = texto) */
-  unidade?: Unidade | 'p.p.' | '×' | 'pessoas' | 'eventos';
+  /**
+   * texto · valor (na `unidade` do bloco) · n (tamanho da amostra) · fracao (0 a 1, exibir em %) ·
+   * lift (razão, exibir com ×)
+   */
+  formato: 'texto' | 'valor' | 'n' | 'fracao' | 'lift';
 }
 
 export interface BlocoTabela extends BlocoBase {
@@ -205,7 +208,8 @@ export type BlocoVisualizacao = BlocoKpi | BlocoSerie | BlocoBarras | BlocoTabel
 
 export interface ItemRastro {
   resultado: string;
-  ferramenta: NomeFerramenta;
+  /** um de NOMES_FERRAMENTAS (ou o nome inválido que o modelo tentou, com ok = false) */
+  ferramenta: string;
   rotulo: string;
   /** argumentos como o motor os resolveu (com padrões aplicados), ou como chegaram quando inválidos */
   argumentos: unknown;
@@ -236,7 +240,7 @@ export interface Verificacao {
 // ── Eventos do stream ─────────────────────────────────────────────────────────
 
 export type EventoAgente =
-  | { tipo: 'passo'; resultado: string; ferramenta: NomeFerramenta; rotulo: string; estado: 'inicio' | 'fim' | 'erro' }
+  | { tipo: 'passo'; resultado: string; ferramenta: string; rotulo: string; estado: 'inicio' | 'fim' | 'erro' }
   | { tipo: 'texto'; delta: string }
   | { tipo: 'bloco'; bloco: BlocoVisualizacao }
   | { tipo: 'rastro'; itens: ItemRastro[] }
