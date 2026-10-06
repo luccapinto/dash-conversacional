@@ -14,7 +14,7 @@ import type { Lente } from '@/lib/analytics/signals';
 import type { ContextoDeepDive } from './contrato';
 import { rotuloPeriodo } from './rotulos';
 
-const LENTE: Record<Lente, string> = {
+export const DESCRICAO_LENTE: Record<Lente, string> = {
   ceo: 'CEO: custo, risco para o negócio e tendência; linguagem direta, sem jargão de RH',
   chro: 'CHRO: visão completa de RH, causas e alavancas de política de pessoas',
   gestor: 'gestor de diretoria: o que acontece no próprio time e ações práticas de gestão',
@@ -50,7 +50,7 @@ function deepDive(c: ContextoDeepDive): string {
     const partes = [p.mes ? `mês ${rotuloMes(p.mes)} (${p.mes})` : '', p.segmento ? `segmento ${p.dimensao} = ${p.segmento}` : ''].filter(Boolean);
     linhas.push(`- Ponto clicado: ${partes.join('; ')}. Explique esse ponto primeiro.`);
   }
-  if (c.lente) linhas.push(`- Público: ${LENTE[c.lente]}.`);
+  if (c.lente) linhas.push(`- Público: ${DESCRICAO_LENTE[c.lente]}.`);
 
   return `## Deep dive em andamento
 O usuário clicou em "Investigar" no painel. Contexto:
