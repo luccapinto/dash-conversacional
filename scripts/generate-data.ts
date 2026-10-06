@@ -9,8 +9,6 @@
  *
  * Simulação: scripts/sim/simular.ts · calibração e histórias: scripts/sim/calibracao.ts ·
  * narrativa: docs/narrativa.md · convenções de tempo: lib/analytics/dominio.ts.
- *
- * Os JSON antigos de lib/data/ (app atual) não são tocados; este gerador escreve em lib/dados/.
  */
 
 import * as fs from 'fs';
