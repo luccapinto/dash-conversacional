@@ -1,29 +1,47 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
+import { Geist, Instrument_Serif } from 'next/font/google';
+import { connection } from 'next/server';
+import { modoIA } from '@/lib/agente/modo';
+import { ProvedorIA } from '@/components/ia/ProvedorIA';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+// next/font: baixadas no build e servidas pelo próprio app (nada de CDN em runtime)
+const geist = Geist({ subsets: ['latin'], variable: '--font-geist', display: 'swap' });
+const serifa = Instrument_Serif({ subsets: ['latin'], weight: '400', variable: '--font-serif', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'Dashboard Conversacional | People Analytics',
-  description:
-    'Dashboard executivo de turnover potencializado por IA conversacional. ' +
-    'Respostas, não apenas gráficos.',
+  title: 'Verta S.A. · People Analytics',
+  description: 'Acompanhamento macro padronizado, deep dive conversacional sobre qualquer indicador e uma IA que destaca e organiza a leitura. A IA decide a apresentação; o código decide os números.',
   openGraph: {
-    title: 'Dashboard Conversacional | People Analytics',
-    description: 'Dashboards que entregam respostas, não apenas gráficos.',
+    title: 'Verta S.A. · People Analytics',
+    description: 'O futuro do data viz na era da IA: painel de People Analytics com deep dive conversacional.',
     type: 'website',
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f5f4ef' },
+    { media: '(prefers-color-scheme: dark)', color: '#0d0e11' },
+  ],
+};
+
+// Tema antes da primeira pintura: ?tema=escuro|claro (links e prints) ou a escolha salva
+const TEMA = `(function(){try{var q=new URLSearchParams(location.search).get('tema');var t=q||localStorage.getItem('tema');if(t==='escuro'||t==='claro')document.documentElement.dataset.tema=t}catch(e){}})()`;
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // o modo da IA é lido a cada pedido (IA_AO_VIVO no ambiente do servidor), nunca no build
+  await connection();
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
-      <body className={inter.className}>{children}</body>
+    <html lang="pt-BR" data-tema="claro" className={`${geist.variable} ${serifa.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: TEMA }} />
+      </head>
+      <body>
+        <ProvedorIA modo={modoIA()}>{children}</ProvedorIA>
+      </body>
     </html>
   );
 }

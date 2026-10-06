@@ -1,0 +1,187 @@
+/**
+ * Blocos de visualização montados pelo SERVIDOR a partir dos resultados das tools. O modelo só
+ * escolhe qual resultado (id r1, r2…) e, opcionalmente, o tipo; números, título e rastreio vêm do
+ * resultado do motor. Id: resultado + tipo, único na resposta (chave da lista e deduplicação).
+ */
+
+import { CATALOGO } from '@/lib/analytics/catalog';
+import {
+  avisoSupressao,
+  type Periodo,
+  type Rastreio,
+  type ResultadoComparar,
+  type ResultadoCruzar,
+  type ResultadoDecompor,
+  type ResultadoDrivers,
+  type ResultadoImpacto,
+  type ResultadoSerie,
+  type ResultadoValor,
+  type Supressao,
+} from '@/lib/analytics/engine';
+import { DESCRICAO_DIMENSAO, type Filtros } from '@/lib/analytics/fatos';
+import type { BlocoVisualizacao, ColunaTabela, DimensaoRecorte, NomeFerramenta, TipoBloco } from './contrato';
+import { descreverRecorte, rotuloSegmento } from './rotulos';
+
+export class ErroBloco extends Error {
+  override name = 'ErroBloco';
+}
+
+/** Tipos aceitos por ferramenta; o primeiro é o padrão */
+export const TIPOS_POR_FERRAMENTA: Partial<Record<NomeFerramenta, readonly TipoBloco[]>> = {
+  valor: ['kpi'],
+  impacto: ['kpi'],
+  serie: ['serie', 'tabela'],
+  decompor: ['barras', 'tabela'],
+  cruzar: ['tabela'],
+  comparar: ['comparacao'],
+  drivers: ['tabela'],
+};
+
+export interface ResultadoVisualizavel {
+  id: string;
+  ferramenta: NomeFerramenta;
+  dados: unknown;
+}
+
+const NOME_GRANULARIDADE = { mes: 'mês', trimestre: 'trimestre', ano: 'ano' } as const;
+
+/** Fatores que a tabela de drivers mostra antes de "ver todos": cabe na gaveta sem rolar demais */
+const VISIVEIS_RISCO = 5;
+const VISIVEIS_PROTECAO = 3;
+
+/** Algum número do bloco não foi divulgado (recorte de pessoas abaixo do mínimo): a frase vai junto */
+function aviso(itens: ReadonlyArray<{ suprimido?: Supressao }>): { aviso?: string } {
+  const s = itens.find(i => i.suprimido)?.suprimido;
+  return s ? { aviso: avisoSupressao(s) } : {};
+}
+
+export function montarBloco(r: ResultadoVisualizavel, tipoPedido?: TipoBloco): BlocoVisualizacao {
+  const tipos = TIPOS_POR_FERRAMENTA[r.ferramenta];
+  if (!tipos) throw new ErroBloco(`${r.id} (${r.ferramenta}) não vira visualização.`);
+  const tipo = tipoPedido ?? tipos[0];
+  if (!tipos.includes(tipo)) throw new ErroBloco(`${r.id} (${r.ferramenta}) pode ser exibido como ${tipos.join(' ou ')}, não como ${tipo}.`);
+
+  const { rastreio } = r.dados as { rastreio: Rastreio };
+  const ind = CATALOGO[rastreio.indicador];
+  const { filtros } = rastreio.parametros as { filtros?: Filtros };
+  const efetivo: Periodo = { inicio: rastreio.periodoEfetivo.inicio, fim: rastreio.periodoEfetivo.fim };
+  const base = {
+    id: `${r.id}-${tipo}`,
+    indicador: ind.id,
+    unidade: ind.unidade,
+    resultado: r.id,
+    rastreio,
+    subtitulo: descreverRecorte(efetivo, filtros),
+  };
+  const meta = ind.meta?.valor ?? null;
+
+  switch (r.ferramenta) {
+    case 'valor': {
+      const d = r.dados as ResultadoValor;
+      return { ...base, tipo: 'kpi', titulo: ind.nome, valor: d.valor, meta: d.meta, status: d.status, n: d.n, amostraSuficiente: d.amostraSuficiente, ...aviso([d]) };
+    }
+    case 'impacto': {
+      const d = r.dados as ResultadoImpacto;
+      if (!d.aplicavel) throw new ErroBloco(`${r.id}: "${ind.nome}" não tem custo associado.`);
+      return {
+        ...base, tipo: 'kpi', unidade: 'R$', titulo: `Custo estimado · ${ind.nome}`,
+        valor: d.valor, meta: null, status: null, n: rastreio.n, amostraSuficiente: rastreio.n !== null && rastreio.n >= rastreio.amostraMinima, ...aviso([d]),
+      };
+    }
+    case 'serie': {
+      const d = r.dados as ResultadoSerie;
+      const { periodo } = rastreio.parametros as { periodo: Periodo };
+      const titulo = `${ind.nome} por ${NOME_GRANULARIDADE[d.granularidade]}`;
+      const subtitulo = descreverRecorte(periodo, filtros);
+      if (tipo === 'tabela') {
+        return {
+          ...base, tipo, titulo, subtitulo, ...aviso(d.pontos),
+          colunas: [
+            { chave: 'periodo', rotulo: 'Período', formato: 'texto' },
+            { chave: 'valor', rotulo: ind.nome, formato: 'valor' },
+            { chave: 'n', rotulo: 'n', formato: 'n' },
+          ],
+          linhas: d.pontos.map(p => ({ periodo: p.rotulo, valor: p.valor, n: p.n })),
+        };
+      }
+      return {
+        ...base, tipo: 'serie', titulo, subtitulo, granularidade: d.granularidade, meta, ...aviso(d.pontos),
+        pontos: d.pontos.map(p => ({ rotulo: p.rotulo, periodo: p.periodo, valor: p.valor, n: p.n, amostraSuficiente: p.amostraSuficiente })),
+      };
+    }
+    case 'decompor': {
+      const d = r.dados as ResultadoDecompor;
+      const dimensao = d.dimensao as DimensaoRecorte;
+      const titulo = `${ind.nome} por ${DESCRICAO_DIMENSAO[dimensao]}`;
+      if (tipo === 'tabela') {
+        return {
+          ...base, tipo, titulo, ...aviso([d.total, ...d.segmentos]),
+          colunas: [
+            { chave: 'segmento', rotulo: DESCRICAO_DIMENSAO[dimensao], formato: 'texto' },
+            { chave: 'valor', rotulo: ind.nome, formato: 'valor' },
+            { chave: 'n', rotulo: 'n', formato: 'n' },
+            { chave: 'peso', rotulo: 'Peso no total', formato: 'fracao' },
+            { chave: 'composicao', rotulo: 'Composição', formato: 'fracao' },
+          ],
+          linhas: d.segmentos.map(s => ({ segmento: s.segmento, valor: s.valor, n: s.n, peso: s.peso, composicao: s.composicao })),
+        };
+      }
+      return {
+        ...base, tipo: 'barras', titulo, dimensao, total: d.total.valor, meta, ...aviso([d.total, ...d.segmentos]),
+        barras: d.segmentos.map(s => ({ rotulo: s.segmento, valor: s.valor, n: s.n, amostraSuficiente: s.amostraSuficiente, composicao: s.composicao })),
+      };
+    }
+    case 'cruzar': {
+      const d = r.dados as ResultadoCruzar;
+      const [d1, d2] = d.dimensoes as [DimensaoRecorte, DimensaoRecorte];
+      const colunas: ColunaTabela[] = [
+        { chave: d1, rotulo: DESCRICAO_DIMENSAO[d1], formato: 'texto' },
+        { chave: d2, rotulo: DESCRICAO_DIMENSAO[d2], formato: 'texto' },
+        { chave: 'valor', rotulo: ind.nome, formato: 'valor' },
+        { chave: 'n', rotulo: 'n', formato: 'n' },
+        { chave: 'composicao', rotulo: 'Composição', formato: 'fracao' },
+      ];
+      return {
+        ...base, tipo: 'tabela', titulo: `${ind.nome} por ${DESCRICAO_DIMENSAO[d1]} e ${DESCRICAO_DIMENSAO[d2]}`, colunas, ...aviso([d.total, ...d.celulas]),
+        linhas: d.celulas.map(c => ({ [d1]: c.segmento[d1] ?? null, [d2]: c.segmento[d2] ?? null, valor: c.valor, n: c.n, composicao: c.composicao })),
+      };
+    }
+    case 'comparar': {
+      const d = r.dados as ResultadoComparar;
+      const { a, b } = rastreio.parametros as { a: { periodo: Periodo; filtros?: Filtros }; b: { periodo: Periodo; filtros?: Filtros } };
+      const lado = (rv: ResultadoValor, rec: { periodo: Periodo; filtros?: Filtros }) => ({
+        rotulo: descreverRecorte(rec.periodo, rec.filtros), valor: rv.valor, n: rv.n, amostraSuficiente: rv.amostraSuficiente,
+      });
+      const ladoA = lado(d.a, a);
+      const ladoB = lado(d.b, b);
+      return {
+        ...base, tipo: 'comparacao', titulo: `${ind.nome}: comparação`, subtitulo: `${ladoA.rotulo} × ${ladoB.rotulo}`, ...aviso([d.a, d.b]),
+        a: ladoA, b: ladoB, diferenca: d.diferenca, unidadeDiferenca: d.unidadeDiferenca, variacaoRelativa: d.variacaoRelativa, melhor: d.melhor,
+      };
+    }
+    case 'drivers': {
+      const d = r.dados as ResultadoDrivers;
+      // atributo sozinho ou combinação, do mais forte ao mais fraco: risco por lift decrescente, proteção crescente
+      const todos = [...d.fatoresDeRisco, ...d.fatoresProtetivos, ...d.combinacoes];
+      const risco = todos.filter(f => f.lift >= 1).sort((x, y) => y.lift - x.lift);
+      const protecao = todos.filter(f => f.lift < 1).sort((x, y) => x.lift - y.lift);
+      return {
+        ...base, tipo: 'tabela', titulo: `Fatores de risco e de proteção · ${ind.nome}`, ...aviso([d.total]),
+        colunas: [
+          { chave: 'fator', rotulo: 'Fator', formato: 'texto' },
+          { chave: 'valor', rotulo: 'Taxa', formato: 'valor' },
+          { chave: 'lift', rotulo: 'Lift', formato: 'lift' },
+          { chave: 'eventos', rotulo: 'Eventos', formato: 'n' },
+          { chave: 'n', rotulo: 'n', formato: 'n' },
+        ],
+        linhas: [...risco, ...protecao].map(f => ({ fator: rotuloSegmento(f.segmento), valor: f.valor, lift: f.lift, eventos: f.eventos, n: f.n })),
+        grupos: [
+          { rotulo: 'Risco', linhas: risco.length, visiveis: Math.min(VISIVEIS_RISCO, risco.length) },
+          { rotulo: 'Proteção', linhas: protecao.length, visiveis: Math.min(VISIVEIS_PROTECAO, protecao.length) },
+        ].filter(g => g.linhas > 0),
+      };
+    }
+    default:
+      throw new ErroBloco(`${r.id} (${r.ferramenta}) não vira visualização.`);
+  }
+}

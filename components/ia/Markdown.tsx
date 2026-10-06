@@ -1,0 +1,160 @@
+/**
+ * Markdown leve, sem dependência, para as respostas do agente: **negrito**, `código`, títulos,
+ * listas, tabelas GFM e parágrafos. Renderiza a cada pedaço do streaming (tabela pela metade não
+ * quebra). O primeiro parágrafo é a conclusão (o agente começa por ela) e sai em destaque.
+ * `marcar`: números que a guarda não conseguiu conferir; aparecem marcados no texto.
+ * `escrevendo`: o texto ainda está chegando; o cursor pisca no ponto de escrita e um negrito
+ * aberto na última linha já sai em negrito (sem os asteriscos à mostra).
+ */
+
+import { Fragment, type ReactNode } from 'react';
+
+const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function comMarcas(texto: string, marcar: readonly string[], chave: string): ReactNode[] {
+  if (!marcar.length) return [texto];
+  const re = new RegExp(`(?<![\\d,.])(${marcar.map(escapar).join('|')})(?![\\d])`, 'g');
+  const out: ReactNode[] = [];
+  let ultimo = 0;
+  for (const m of texto.matchAll(re)) {
+    if (m.index > ultimo) out.push(texto.slice(ultimo, m.index));
+    out.push(
+      <mark key={`${chave}-m${m.index}`} className="nv" title="Número não conferido contra os resultados das funções">
+        {m[0]}
+      </mark>,
+    );
+    ultimo = m.index + m[0].length;
+  }
+  if (ultimo < texto.length) out.push(texto.slice(ultimo));
+  return out;
+}
+
+function inline(texto: string, chave: string, marcar: readonly string[]): ReactNode[] {
+  const nos: ReactNode[] = [];
+  const re = /(\*\*([^*]+)\*\*|`([^`]+)`)/g;
+  let ultimo = 0;
+  let i = 0;
+  for (const m of texto.matchAll(re)) {
+    if (m.index > ultimo) nos.push(<Fragment key={`${chave}-t${i}`}>{comMarcas(texto.slice(ultimo, m.index), marcar, `${chave}-t${i}`)}</Fragment>);
+    if (m[2] !== undefined) nos.push(<strong key={`${chave}-b${i}`}>{comMarcas(m[2], marcar, `${chave}-b${i}`)}</strong>);
+    else nos.push(<code key={`${chave}-c${i}`}>{m[3]}</code>);
+    ultimo = m.index + m[0].length;
+    i++;
+  }
+  if (ultimo < texto.length) nos.push(<Fragment key={`${chave}-fim`}>{comMarcas(texto.slice(ultimo), marcar, `${chave}-fim`)}</Fragment>);
+  return nos;
+}
+
+const celulas = (linha: string) => linha.replace(/^\s*\||\|\s*$/g, '').split('|').map(c => c.trim());
+const ehSeparadora = (linha: string) => /^\s*\|?[\s:|-]+\|[\s:|-]+\|?\s*$/.test(linha) && linha.includes('-');
+const ehItem = (linha: string) => /^\s*[-*]\s+/.test(linha);
+const ehNumerado = (linha: string) => /^\s*\d+\.\s+/.test(linha);
+
+const CURSOR = <span key="cursor" className="cursor" aria-hidden="true" />;
+
+/** Última linha ainda chegando: tira o "*" solto (metade de "**") e fecha o negrito aberto */
+function fecharNegrito(text: string): string {
+  const corte = text.lastIndexOf('\n') + 1;
+  let ultima = text.slice(corte).replace(/(?<!\*)\*$/, '');
+  if ((ultima.match(/\*\*/g) ?? []).length % 2) ultima += '**';
+  return text.slice(0, corte) + ultima;
+}
+
+export function Markdown({ text, marcar = [], escrevendo = false }: { text: string; marcar?: readonly string[]; escrevendo?: boolean }) {
+  const linhas = (escrevendo ? fecharNegrito(text) : text).split('\n');
+  const blocos: ReactNode[] = [];
+  let i = 0;
+  let k = 0;
+  let primeiro = true;
+  // o cursor vai no fim do bloco que contém a última linha com texto
+  const ultima = escrevendo ? linhas.findLastIndex(l => l.trim()) : -1;
+  let cursorPosto = false;
+
+  while (i < linhas.length) {
+    const linha = linhas[i];
+    if (!linha.trim()) {
+      i++;
+      continue;
+    }
+    const inicio = i;
+
+    const titulo = /^(#{1,6})\s+(.*)$/.exec(linha);
+    if (titulo) {
+      i++;
+      const comCursor = inicio <= ultima && ultima < i;
+      cursorPosto ||= comCursor;
+      blocos.push(
+        <h4 key={k++}>
+          {inline(titulo[2].replace(/:$/, ''), `h${k}`, marcar)}
+          {comCursor && CURSOR}
+        </h4>,
+      );
+      primeiro = false;
+      continue;
+    }
+
+    if (linha.includes('|') && i + 1 < linhas.length && ehSeparadora(linhas[i + 1])) {
+      const cab = celulas(linha);
+      i += 2;
+      const corpo: string[][] = [];
+      while (i < linhas.length && linhas[i].includes('|')) corpo.push(celulas(linhas[i++]));
+      const base = `tb${k}`;
+      blocos.push(
+        <div key={k++} className="tab-md">
+          <table>
+            <thead>
+              <tr>{cab.map((c, j) => <th key={j}>{inline(c, `${base}-h${j}`, marcar)}</th>)}</tr>
+            </thead>
+            <tbody>
+              {corpo.map((r, ri) => (
+                <tr key={ri}>{r.map((c, ci) => <td key={ci}>{inline(c, `${base}-${ri}-${ci}`, marcar)}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      primeiro = false;
+      continue;
+    }
+
+    if (ehItem(linha) || ehNumerado(linha)) {
+      const numerada = ehNumerado(linha);
+      const teste = numerada ? ehNumerado : ehItem;
+      const itens: string[] = [];
+      while (i < linhas.length && teste(linhas[i])) itens.push(linhas[i++].replace(/^\s*(?:[-*]|\d+\.)\s+/, ''));
+      const base = `l${k}`;
+      const comCursor = inicio <= ultima && ultima < i;
+      cursorPosto ||= comCursor;
+      const lis = itens.map((it, j) => (
+        <li key={j}>
+          {inline(it, `${base}-${j}`, marcar)}
+          {comCursor && j === itens.length - 1 && CURSOR}
+        </li>
+      ));
+      blocos.push(numerada ? <ol key={k++}>{lis}</ol> : <ul key={k++}>{lis}</ul>);
+      primeiro = false;
+      continue;
+    }
+
+    // Parágrafo. A primeira linha é sempre consumida: no streaming, o cabeçalho de uma tabela
+    // chega antes da separadora e nenhum outro bloco o aceita.
+    const para = [linha];
+    i++;
+    while (i < linhas.length && linhas[i].trim() && !linhas[i].includes('|') && !ehItem(linhas[i]) && !ehNumerado(linhas[i]) && !/^#{1,6}\s/.test(linhas[i])) para.push(linhas[i++]);
+    const corpo = para.join(' ');
+    const comCursor = inicio <= ultima && ultima < i;
+    cursorPosto ||= comCursor;
+    // a conclusão costuma vir em negrito; no destaque (serifa) o negrito sai, como na maquete
+    blocos.push(
+      <p key={k++} className={primeiro ? 'lead' : undefined}>
+        {inline(primeiro ? corpo.replace(/\*\*/g, '') : corpo, `p${k}`, marcar)}
+        {comCursor && CURSOR}
+      </p>,
+    );
+    primeiro = false;
+  }
+
+  // tabela no fim (ou texto vazio): o cursor fica logo abaixo
+  if (escrevendo && !cursorPosto) blocos.push(CURSOR);
+  return <div className="resp">{blocos}</div>;
+}

@@ -1,8 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Garante que a API key do OpenRouter nunca vaze para o client bundle
-  serverExternalPackages: [],
   async headers() {
     return [
       {
