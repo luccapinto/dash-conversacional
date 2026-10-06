@@ -66,7 +66,7 @@ const ESQUEMAS_EXTRAS: Record<'listarIndicadores' | 'sinais' | 'mostrar', JsonSc
   mostrar: {
     type: 'object',
     description:
-      'Exibe resultados já obtidos como visualização para o usuário (o servidor monta o gráfico com os números do resultado). Chame depois de ter os dados e antes da resposta final, com 1 a 3 resultados que sustentam a conclusão.',
+      'Exibe resultados já obtidos como visualização para o usuário (o servidor monta o gráfico com os números do resultado). Só resultados de valor, serie, decompor, cruzar, comparar, drivers e impacto viram visualização (sinais e listarIndicadores não). Chame depois de ter os dados e antes da resposta final, com 1 a 3 resultados que sustentam a conclusão.',
     properties: {
       blocos: {
         type: 'array',
@@ -468,7 +468,7 @@ export function criarSessao(amb: AmbienteFerramentas): SessaoFerramentas {
         recusas.push(e.message);
       }
     }
-    const erro = recusas.length ? `Não foi possível exibir: ${recusas.join('; ')}.` : undefined;
+    const erro = recusas.length ? `Não foi possível exibir: ${recusas.map(r => r.replace(/\.$/, '')).join('; ')}.` : undefined;
     return {
       dados: null,
       argumentos: args,
