@@ -25,6 +25,7 @@ describe('resumo executivo', () => {
     expect(itens).toHaveLength(15);
     expect(r.placar.ytd).toEqual({ dentro: 2, atencao: 4, fora: 9 });
     for (const c of [r.placar.mes, r.placar.aa!]) expect(c.dentro + c.atencao + c.fora).toBe(15);
+    expect(itens.some(i => (OCULTOS_PAINEL as readonly string[]).includes(i.id))).toBe(false);
   });
 
   it('dentro do domínio: fora da meta primeiro, depois atenção, depois na meta', () => {

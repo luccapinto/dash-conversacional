@@ -19,7 +19,7 @@ E que vai além: um chat em linguagem natural onde o usuário pergunta e a IA re
 
 - **Framework:** Next.js 16 (App Router) + TypeScript
 - **Estilo:** Tailwind CSS v4 com design tokens executivos customizados
-- **Gráficos:** Recharts
+- **Gráficos:** SVG próprio renderizado no servidor (sem biblioteca de gráficos no bundle)
 - **IA:** OpenRouter (modelo de raciocínio, default Claude 3.5 Sonnet) via serverless function — function calling com streaming real
 - **Deploy:** Vercel (deploy automático a cada push)
 - **Dados:** JSON estático gerado por script offline (sem banco de dados)
@@ -56,8 +56,9 @@ Acesse `http://localhost:3000`.
 # Gerar dados sintéticos (seed fixa — reprodutível)
 npx tsx scripts/generate-data.ts
 
-# Regenerar insights pré-gerados (requer OPENROUTER_API_KEY no ambiente)
-npx tsx scripts/generate-insights.ts
+# Regenerar layouts e títulos da IA pré-gerados (requer DEEPSEEK_API_KEY ou OPENROUTER_API_KEY)
+node --env-file=.env.local --import tsx scripts/generate-layouts.ts
+node --env-file=.env.local --import tsx scripts/generate-destaques.ts
 ```
 
 O script de dados é determinístico: rodar com a mesma seed produz exatamente os mesmos JSONs.
@@ -70,23 +71,23 @@ Ver [`docs/architecture.md`](docs/architecture.md) para o ADR completo com o flu
 
 ```
 app/
-  api/chat/       # Serverless function — proxy OpenRouter com function calling
-  page.tsx        # Dashboard principal
+  api/agente/     # Agente com tools sobre o motor (SSE)
+  api/layout/     # Layout spec do recorte (pré-gerado ou ao vivo)
+  page.tsx        # Aba Gerencial; resumo/ e indicadores/[id]/ são as outras telas
 lib/
-  types/          # Contratos TypeScript de todos os dados
-  calculations/   # Funções de cálculo determinísticas (fonte dos gráficos + tools da IA)
-  data/           # JSONs estáticos gerados pelos scripts
-  context/        # FilterContext — estado global de filtros
+  analytics/      # Catálogo, motor (cubo no client, roster no servidor) e detector de sinais
+  agente/         # Contratos, tools, guarda de números e rota do agente
+  layout/         # Layout spec, determinístico e gerador pela IA
+  painel/         # Modelos de vista das telas (filtros, janelas, formatação)
+  ia/             # Cliente SSE e estado do painel da IA
+  dados/          # Cubo, layouts e títulos (client/servidor) gerados pelos scripts
 components/
-  ui/             # Primitivos: Card, BigStat, Badge
-  charts/         # Gráficos com Recharts
-  dashboard/      # Composição do dashboard
-  chat/           # UI do chat conversacional
+  painel/ ia/ graficos/  # Telas, painel da IA e gráficos SVG
 scripts/
-  generate-data.ts     # Gera o dataset sintético
-  generate-insights.ts # Gera os insights pré-gerados via OpenRouter
-docs/
-  architecture.md # ADR de arquitetura de dados e estado
+  generate-data.ts       # Gera o dataset sintético
+  generate-layouts.ts    # Layouts pré-gerados pela IA
+  generate-destaques.ts  # Títulos da IA por indicador
+  orcamento.ts           # Orçamento de JS por rota (npm run orcamento)
 ```
 
 ## Milestones

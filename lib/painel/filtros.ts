@@ -6,7 +6,10 @@
 
 import { DIRETORIAS, MES_FIM, MESES, SENIORIDADES, rotuloMes, type Diretoria, type Mes, type Senioridade } from '@/lib/analytics/dominio';
 import type { Filtros } from '@/lib/analytics/fatos';
-import { LENTES, type Lente } from '@/lib/analytics/signals';
+import type { Lente } from '@/lib/analytics/signals';
+
+/** Mesmas lentes de signals.ts (o Record obriga a listar todas); local para o client não carregar o detector */
+const LENTE_VALIDA: Record<Lente, true> = { ceo: true, chro: true, gestor: true };
 
 export interface FiltrosPainel {
   mes: Mes;
@@ -28,6 +31,8 @@ export function slug(texto: string): string {
 const DIRETORIA_DO_SLUG: Record<string, Diretoria> = Object.fromEntries(DIRETORIAS.map(d => [slug(d), d]));
 const SENIORIDADE_DO_SLUG: Record<string, Senioridade> = Object.fromEntries(SENIORIDADES.map(s => [slug(s), s]));
 
+const daTabela = <T>(tabela: Record<string, T>, chave: string | undefined): T | null => (chave && Object.hasOwn(tabela, chave) ? tabela[chave] : null);
+
 export function lerFiltros(params: ParametrosBusca | URLSearchParams): FiltrosPainel {
   const ler = (k: string): string | undefined => {
     const v = params instanceof URLSearchParams ? params.get(k) ?? undefined : params[k];
@@ -37,9 +42,9 @@ export function lerFiltros(params: ParametrosBusca | URLSearchParams): FiltrosPa
   const lente = ler('lente');
   return {
     mes: mes && MESES.includes(mes) ? mes : MES_FIM,
-    diretoria: DIRETORIA_DO_SLUG[ler('diretoria') ?? ''] ?? null,
-    senioridade: SENIORIDADE_DO_SLUG[ler('senioridade') ?? ''] ?? null,
-    lente: lente && (LENTES as readonly string[]).includes(lente) ? (lente as Lente) : null,
+    diretoria: daTabela(DIRETORIA_DO_SLUG, ler('diretoria')),
+    senioridade: daTabela(SENIORIDADE_DO_SLUG, ler('senioridade')),
+    lente: lente && Object.hasOwn(LENTE_VALIDA, lente) ? (lente as Lente) : null,
   };
 }
 

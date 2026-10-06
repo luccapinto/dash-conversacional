@@ -1,7 +1,6 @@
 /**
  * POST /api/agente: agente de People Analytics com deep dive (fase 2). Contrato de entrada e dos
- * eventos SSE em lib/agente/contrato.ts. Substitui /api/chat, que fica intacta até a fase 3 trocar
- * a UI.
+ * eventos SSE em lib/agente/contrato.ts; o painel da IA (fase 3) consome em lib/ia/stream.ts.
  *
  * maxDuration = 120 é um teto deliberado, não o pior caso teórico: um deep dive típico leva 3 a 4
  * pedidos ao modelo e 8 a 13 s (avaliação da fase 2). O pior caso (7 pedidos, cada um podendo
