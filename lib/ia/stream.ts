@@ -22,6 +22,8 @@ export interface PassoTurno {
 export interface Turno {
   pergunta: string;
   passos: PassoTurno[];
+  /** frases que o modelo escreve antes de chamar tools ("Vou puxar a série..."): narração, não resposta */
+  narracao: string[];
   texto: string;
   blocos: BlocoVisualizacao[];
   rastro: ItemRastro[] | null;
@@ -37,7 +39,7 @@ const INTERROMPIDA = 'A resposta foi interrompida antes do fim.';
 const SEM_CONEXAO = 'Sem conexão com o agente. Verifique a rede e tente de novo.';
 
 export function novoTurno(pergunta: string): Turno {
-  return { pergunta, passos: [], texto: '', blocos: [], rastro: null, verificacao: null, estado: 'aguardando', erro: null };
+  return { pergunta, passos: [], narracao: [], texto: '', blocos: [], rastro: null, verificacao: null, estado: 'aguardando', erro: null };
 }
 
 export function aplicarEvento(t: Turno, e: EventoAgente): Turno {
@@ -45,7 +47,10 @@ export function aplicarEvento(t: Turno, e: EventoAgente): Turno {
     case 'passo': {
       const passo: PassoTurno = { resultado: e.resultado, ferramenta: e.ferramenta, rotulo: e.rotulo, estado: e.estado };
       const i = t.passos.findIndex(p => p.resultado === e.resultado);
-      return { ...t, passos: i < 0 ? [...t.passos, passo] : t.passos.map((p, k) => (k === i ? passo : p)) };
+      const passos = i < 0 ? [...t.passos, passo] : t.passos.map((p, k) => (k === i ? passo : p));
+      // texto antes de uma rodada de tools é narração: a resposta começa depois da última rodada
+      if (e.estado === 'inicio' && t.texto.trim()) return { ...t, passos, narracao: [...t.narracao, t.texto.trim()], texto: '', estado: 'aguardando' };
+      return { ...t, passos };
     }
     case 'texto':
       return { ...t, texto: t.texto + e.delta, estado: 'transmitindo' };

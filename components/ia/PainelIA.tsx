@@ -139,6 +139,11 @@ function TurnoIA({ turno: t, ultimo, aoRepetir }: { turno: Turno; ultimo: boolea
   return (
     <>
       <div className="msg-u">{t.pergunta}</div>
+      {t.narracao.map((n, i) => (
+        <p key={i} className="narracao">
+          {n}
+        </p>
+      ))}
       {(t.passos.length > 0 || t.estado === 'aguardando') && (
         <ol className="passos" aria-label="Consultas ao motor">
           {t.passos.map(p => (

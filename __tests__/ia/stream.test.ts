@@ -54,6 +54,18 @@ describe('perguntarAgente', () => {
     expect(estados.some(t => t.estado === 'transmitindo' && t.texto === '**18,4% a.a.**')).toBe(true);
   });
 
+  it('frase escrita antes das tools é narração; a resposta (e o destaque) começa depois da última rodada', async () => {
+    const { final } = await perguntar(sse([
+      { tipo: 'texto', delta: 'Vou puxar a série.' },
+      { tipo: 'passo', resultado: 'r1', ferramenta: 'serie', rotulo: 'Série mensal', estado: 'inicio' },
+      { tipo: 'passo', resultado: 'r1', ferramenta: 'serie', rotulo: 'Série mensal', estado: 'fim' },
+      { tipo: 'texto', delta: '\n\n**Set/26 fechou em 16,27% a.a.**' },
+      { tipo: 'fim', verificacao: { total: 1, verificados: 1, naoVerificados: [] } },
+    ]));
+    expect(final.narracao).toEqual(['Vou puxar a série.']);
+    expect(final.texto.trim()).toBe('**Set/26 fechou em 16,27% a.a.**');
+  });
+
   it('stream que termina sem `fim` é resposta interrompida (o texto parcial fica)', async () => {
     const { final } = await perguntar(sse([{ tipo: 'texto', delta: 'O turnover voluntário' }]));
     expect(final.estado).toBe('interrompido');
