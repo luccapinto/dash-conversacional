@@ -152,11 +152,11 @@ Regras:
 - Use só as referências dadas: ids do catálogo, sinais (s1, s2…) e âncoras (a1, a2…).
 - Números em textos: só os que aparecem na evidência de um sinal ou no valor de uma âncora, escritos como estão lá. Na dúvida, escreva sem número. Datas como Jan/26 podem.
 - PT-BR, tom executivo e factual, sem adjetivos alarmistas, sem emojis.
-- manchete: 1 frase (até ${LIMITES_LAYOUT.manchete} caracteres) com a leitura principal para o público.
-- cards: 8 a 10 indicadores, sem repetir, em ordem de importância para o público; destaque "alto" em no máximo 3, "medio" nos que têm sinal, "normal" nos demais; titulo: frase narrativa curta (até 90 caracteres) ou null.
-- graficos: 2 ou 3 sinais que merecem gráfico, cada um com um título narrativo (até 90 caracteres).
-- anotacoes: 2 a 4 âncoras com texto curto (até ${LIMITES_LAYOUT.anotacao} caracteres) que explica o ponto.
-- deepDives: 3 a 5 perguntas que o público faria (até ${LIMITES_LAYOUT.pergunta} caracteres), cada uma ligada a um sinal e, se fizer sentido, a uma âncora desse sinal.
+- manchete: 1 frase curta (no máximo 15 palavras, até 100 caracteres) com a leitura principal para o público.
+- cards: 8 a 10 indicadores, sem repetir, em ordem de importância para o público; destaque "alto" em no máximo 3, "medio" nos que têm sinal, "normal" nos demais; titulo: frase narrativa curta (até 70 caracteres) ou null.
+- graficos: 2 ou 3 sinais que merecem gráfico, cada um com um título narrativo (até 70 caracteres).
+- anotacoes: 2 a 4 âncoras com texto curto (até 70 caracteres) que explica o ponto.
+- deepDives: 3 a 5 perguntas que o público faria (até 110 caracteres), cada uma ligada a um sinal e, se fizer sentido, a uma âncora desse sinal.
 
 Exemplo de JSON:
 ${JSON.stringify(EXEMPLO, null, 1)}`;

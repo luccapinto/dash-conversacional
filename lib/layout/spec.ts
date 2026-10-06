@@ -84,12 +84,13 @@ export interface LayoutSpec {
   deepDives: DeepDiveSugerido[];
 }
 
+/** Limites duros do schema (o prompt da IA pede menos, com folga) */
 export const LIMITES_LAYOUT = {
   cards: { min: 6, max: 12 },
   graficos: { min: 0, max: 4 },
   anotacoes: { min: 0, max: 6 },
   deepDives: { min: 3, max: 5 },
-  manchete: 120,
+  manchete: 160,
   titulo: 100,
   anotacao: 90,
   pergunta: 140,
