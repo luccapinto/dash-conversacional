@@ -4,7 +4,7 @@
  * lentes é gravada uma vez (`lentes` diz onde ela aparece).
  */
 
-import { comparar, decompor, drivers, impacto, mes, P12, P12_ANTERIOR, P24, serie, sinais, valor } from './consultas';
+import { comparar, decompor, drivers, impacto, JANELA, mes, P12, P12_ANTERIOR, P24, serie, sinais, valor } from './consultas';
 import type { EntradaRoteiro } from './gravar';
 
 const TEC = { diretoria: 'Tecnologia' };
@@ -28,7 +28,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou puxar a série de Produtos & Plataforma, comparar com o ano anterior e abrir por onboarding.',
     rodadas: [[serie('early_attrition', P24, PP), comparar('early_attrition', { periodo: P12, filtros: PP }, { periodo: P12_ANTERIOR, filtros: PP }), decompor('early_attrition', 'onboarding', P12, PP), impacto('early_attrition', P12, PP)]],
     mostrar: [{ resultado: 'r1' }, { resultado: 'r3' }],
-    texto: texto(''),
+    texto: texto(
+      'O salto vem de contratar rápido sem onboarding: o early attrition de Produtos & Plataforma pulou de 25,5% a.a. em Mar/25 para 76,4% em Abr/25 e não voltou mais ao patamar antigo.',
+      '',
+      '- **Nos últimos 12 meses:** **53,9% a.a.**, contra 32,0% nos 12 meses anteriores (+68,7%), fora da meta de 30% (acima).',
+      '- **Por quê:** quem entrou sem a trilha de onboarding completa sai a 65,0% a.a. no primeiro ano, contra 16,1% de quem completou (4,04 vezes); 93,2% dessas saídas vieram de quem não completou.',
+      '- **Custo:** as saídas no primeiro ano de Produtos & Plataforma custaram R$ 7,3 mi em 12 meses.',
+      '- **O que fazer:** tornar a trilha de onboarding obrigatória antes de abrir novas turmas e acompanhar as saídas de cada turma nos primeiros meses.',
+    ),
     continuacoes: ['historia-onboarding-produtos', 'resumo-custo-turnover-produtos'],
   },
   {
@@ -40,7 +47,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou levantar o custo de janeiro, a série de 24 meses e quem saiu naquele mês.',
     rodadas: [[valor('custo_turnover', JAN26, DA), serie('custo_turnover', P24, DA), valor('turnover', JAN26, DA), decompor('turnover_involuntario', 'performance', JAN26, DA)]],
     mostrar: [{ resultado: 'r2' }, { resultado: 'r4' }],
-    texto: texto(''),
+    texto: texto(
+      'Porque janeiro concentra os cortes depois do fechamento das metas comerciais e os pedidos de demissão depois do bônus: o custo do mês chegou a **R$ 4.636.200** em Jan/26.',
+      '',
+      '- **Padrão:** Jan/25 já tinha custado R$ 4.529.400; nos outros meses, o custo fica entre R$ 761.400 e R$ 1.599.600.',
+      '- **Turnover:** a diretoria chegou a 95,8% a.a. em Jan/26, fora da meta (acima), 3,99 vezes a meta.',
+      '- **Quem sai:** no involuntário, quem tinha avaliação abaixo do esperado saiu a uma taxa anualizada de 380,5%, 34,88 vezes a de quem estava acima (10,9%); ainda assim, 66,0% dos desligados estavam dentro do esperado.',
+      '- **O que fazer:** tratar a baixa performance ao longo do ano em vez de concentrar o corte em janeiro e prever o pico no orçamento de reposição.',
+    ),
     continuacoes: ['historia-janeiro-da', 'resumo-pico-janeiro-mitigar'],
   },
   {
@@ -52,7 +66,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou puxar os ciclos de eNPS de Operações, o efeito das trocas de gestor e o custo das saídas.',
     rodadas: [[serie('enps', P24, OP, 'trimestre'), decompor('enps', 'trocasGestor', P12, OP), impacto('turnover_voluntario', P12, OP)]],
     mostrar: [{ resultado: 'r1' }, { resultado: 'r2' }],
-    texto: texto(''),
+    texto: texto(
+      'O eNPS de Operações caiu de +17,7 no 4T24 para −47,4 no 1T25, logo depois da primeira reorganização, e segue em **−37,9 no 3T26**, longe da meta de +20.',
+      '',
+      '- **Trocas de gestor:** de Dez/25 a Set/26, quem não trocou de gestor tem eNPS de −36,9; quem trocou 2 ou mais vezes, −54,8 (17,86 pontos a menos).',
+      '- **Leitura:** mesmo quem não trocou está muito abaixo da meta: além das trocas, o clima da diretoria inteira caiu.',
+      '- **Custo:** as saídas voluntárias de Operações custaram R$ 8,1 mi nos últimos 12 meses.',
+      '- **Como reverter:** congelar novas mudanças de estrutura, fazer conversas individuais com quem mudou de gestor e montar com cada time um plano de ação a partir da pesquisa, revisto a cada ciclo.',
+    ),
     continuacoes: ['historia-enps-operacoes', 'resumo-enps-operacoes-acoes'],
   },
   {
@@ -64,7 +85,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou buscar o sinal de antecedente no detector e abrir as saídas por resposta de eNPS.',
     rodadas: [[sinais(P12, 'Operações', 'ceo'), serie('turnover_voluntario', P24, OP), decompor('turnover_voluntario', 'enps', P12, OP), valor('turnover_voluntario', P12, OP)]],
     mostrar: [{ resultado: 'r2' }, { resultado: 'r3' }],
-    texto: texto(''),
+    texto: texto(
+      'O detector já viu isso acontecer uma vez: o eNPS de Operações mudou de patamar em Mar/25 (média de +18 para -43) e o turnover voluntário subiu de 10,8% a.a. para 17,6% a.a. 3 meses depois.',
+      '',
+      '- **Hoje:** o eNPS segue em −41 nos últimos 12 meses e o voluntário está em **16,95% a.a.**, acima da meta, em atenção; Set/26 fechou em 18,5% a.a.',
+      '- **Quem sai:** os detratores pedem demissão a 24,3% a.a., contra 7,7% dos promotores (3,15 vezes), e respondem por 70,6% das saídas voluntárias.',
+      '- **Leitura:** enquanto o eNPS não se recuperar, a base de detratores mantém o risco alto; uma nova queda tende a aparecer no turnover com cerca de um trimestre de atraso.',
+      '- **O que fazer:** acompanhar o eNPS de Operações a cada ciclo e agir com os detratores antes de a saída acontecer.',
+    ),
     continuacoes: ['historia-enps-operacoes', 'enps-saidas'],
   },
   {
@@ -76,7 +104,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou comparar Gente com as outras diretorias e abrir por onboarding.',
     rodadas: [[valor('early_attrition', P12, GENTE), decompor('early_attrition', 'diretoria'), decompor('early_attrition', 'onboarding', P12, GENTE), decompor('early_attrition', 'onboarding')]],
     mostrar: [{ resultado: 'r2' }, { resultado: 'r4' }],
-    texto: texto(''),
+    texto: texto(
+      'Gente tem o menor early attrition da empresa: **10,9% a.a.**, dentro da meta de 30%, contra 53,9% de Produtos & Plataforma (4,93 vezes mais).',
+      '',
+      '- **Onboarding:** em Gente, quem completou a trilha sai a 7,1% a.a. no primeiro ano. No grupo sem trilha completa, amostra insuficiente (menos de 30 pessoas) — valor não divulgado.',
+      '- **Na empresa toda:** quem não completa o onboarding sai a 67,2% a.a., contra 24,2% de quem completa (2,78 vezes).',
+      '- **Cuidado:** a base de Gente é pequena (64 pessoas no primeiro ano), então a taxa oscila muito de um mês para o outro.',
+      '- **O que levar para outras áreas:** a trilha de onboarding completa é o que mais separa quem fica de quem sai no primeiro ano.',
+    ),
     continuacoes: ['early-attrition-onboarding', 'historia-onboarding-produtos'],
   },
 
@@ -90,7 +125,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou buscar os fatores de risco e de proteção do early attrition de Produtos & Plataforma.',
     rodadas: [[serie('early_attrition', P24, PP), drivers('early_attrition', P12, PP), decompor('early_attrition', 'onboarding', P12, PP)]],
     mostrar: [{ resultado: 'r1' }, { resultado: 'r2' }],
-    texto: texto(''),
+    texto: texto(
+      'A quebra coincide com a contratação acelerada para a plataforma nova: até Mar/25 a série oscilava entre 14,5% e 31,6% a.a.; em Abr/25 saltou para **76,4%** e não voltou ao patamar antigo (71,9% em Set/26).',
+      '',
+      '- **Proteção:** o onboarding completo é o principal fator de proteção (16,1% a.a., lift 0,3).',
+      '- **Risco:** estar no Q1 da faixa salarial (90,8% a.a., lift 1,68) e ser detrator no eNPS (85,0% a.a., lift 1,58).',
+      '- **Onboarding:** quem não completou a trilha sai a 65,0% a.a., e quase todo mundo que entrou desde a aceleração ficou sem ela.',
+      '- **O que fazer:** onboarding obrigatório para cada nova turma e revisão da oferta de entrada de quem está no Q1.',
+    ),
     continuacoes: ['historia-onboarding-produtos', 'early-attrition-onboarding'],
   },
   {
@@ -102,7 +144,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou abrir o eNPS de Operações por trocas de gestor, faixa salarial e tempo de casa.',
     rodadas: [[valor('enps', P12, OP), decompor('enps', 'trocasGestor', P12, OP), decompor('enps', 'faixaSalarial', P12, OP), decompor('enps', 'tempoCasa', P12, OP)]],
     mostrar: [{ resultado: 'r2' }, { resultado: 'r3' }],
-    texto: texto(''),
+    texto: texto(
+      'O eNPS de Operações está em **−40,6** de Dez/25 a Set/26, fora da meta (abaixo), 60,6 pontos abaixo dela.',
+      '',
+      '- **Estabilidade de gestão:** −36,9 para quem não trocou de gestor, −44,9 para quem trocou uma vez e −54,8 para quem trocou 2 ou mais vezes.',
+      '- **Salário:** o Q1 da faixa tem o pior eNPS (−46,5) e o teto, o melhor (−34,8): 11,73 pontos de diferença.',
+      '- **Tempo de casa:** quase não muda o quadro (6,5 pontos entre o maior e o menor).',
+      '- **Alavancas:** política de transição quando houver troca de gestor, revisão do posicionamento na faixa para quem está no Q1 e no piso, e pesquisas de pulso entre os ciclos para medir o efeito.',
+    ),
     continuacoes: ['historia-operacoes', 'resumo-enps-operacoes-acoes'],
   },
   {
@@ -114,7 +163,13 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou puxar a série de custo de Produtos & Plataforma e separar o que vem das saídas no primeiro ano.',
     rodadas: [[serie('custo_turnover', P24, PP), valor('custo_turnover', P12, PP), impacto('early_attrition', P12, PP), comparar('custo_turnover', { periodo: P12, filtros: PP }, { periodo: P12_ANTERIOR, filtros: PP })]],
     mostrar: [{ resultado: 'r1' }, { resultado: 'r4' }],
-    texto: texto(''),
+    texto: texto(
+      'O custo do turnover de Produtos & Plataforma chegou a **R$ 12,7 mi** nos últimos 12 meses, 55,3% acima dos 12 meses anteriores (R$ 8,2 mi).',
+      '',
+      '- **Quando mudou:** até Jun/25 o custo mensal ficava entre R$ 447.000 e R$ 706.800; em Jul/25 saltou para R$ 1.446.000 e passou a oscilar num patamar mais alto (R$ 1.393.200 em Set/26).',
+      '- **De onde vem:** as saídas no primeiro ano custaram R$ 7,3 mi no período, mais da metade do total.',
+      '- **Como conter:** onboarding obrigatório para cada nova turma, que ataca a maior parte do custo, e revisão da oferta de entrada no Q1 da faixa.',
+    ),
     continuacoes: ['historia-onboarding-produtos', 'custo-turnover-tipo'],
   },
   {
@@ -126,7 +181,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou abrir o time to fill de Tecnologia por especialidade e senioridade e ver o aceite de oferta.',
     rodadas: [[valor('time_to_fill', P12, TEC), decompor('time_to_fill', 'especialidade', P12, TEC), decompor('time_to_fill', 'senioridade', P12, TEC), valor('aceite_oferta', P12, TEC)]],
     mostrar: [{ resultado: 'r2', tipo: 'tabela' }, { resultado: 'r3' }],
-    texto: texto(''),
+    texto: texto(
+      'O time to fill de Tecnologia está em **87,5 dias**, fora da meta de 45 (acima), 1,94 vez a meta.',
+      '',
+      '- **Não é uma especialidade:** todas ficam entre 83 dias (Infraestrutura & Cloud) e 96 dias (Segurança da Informação).',
+      '- **Nem a senioridade:** de júnior a sênior, perto de 88 dias; só a gerência fica um pouco abaixo (79,8 dias).',
+      '- **O gargalo é a oferta:** o aceite de oferta de Tecnologia é de 67,8%, fora da meta de 85% (abaixo); cada recusa reinicia o processo.',
+      '- **Ações:** reposicionar a faixa de entrada dos cargos de Tecnologia, manter um banco de candidatos aquecido e abrir as vagas primeiro para quem já está na empresa.',
+    ),
     continuacoes: ['historia-vagas-tecnologia', 'aceite-oferta-tecnologia'],
   },
   {
@@ -138,7 +200,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou comparar Jan/26 com Jan/25 e checar o sinal de sazonalidade do detector.',
     rodadas: [[serie('turnover', P24, DA), comparar('turnover', { periodo: JAN26, filtros: DA }, { periodo: mes('2025-01'), filtros: DA }), sinais(P12, 'Distribuição & Assessoria', 'chro'), valor('turnover', P12, DA)]],
     mostrar: [{ resultado: 'r1' }, { resultado: 'r2' }],
-    texto: texto(''),
+    texto: texto(
+      'É sazonal, com tendência de piora: o pico se repete todo janeiro (90,2% a.a. em Jan/24, 86,3% em Jan/25 e **95,8% em Jan/26**), e o detector marca Jan/26 em 4,5× a mediana dos 12 meses anteriores.',
+      '',
+      '- **Contra o ano anterior:** Jan/26 ficou 9,45 p.p. acima de Jan/25.',
+      '- **Fora de janeiro:** a taxa fica entre 15,1% e 27,1% a.a.; nos 12 meses, a diretoria fecha em 26,3% a.a., acima da meta, em atenção.',
+      '- **O que é estrutural:** os pedidos de demissão de janeiro crescem ano a ano (28,0% a.a. em Jan/24, 30,0% em Jan/25 e 40,2% em Jan/26), depois do bônus.',
+      '- **O que fazer:** rever o calendário do bônus para reter depois de janeiro e espalhar ao longo do ano o tratamento da baixa performance.',
+    ),
     continuacoes: ['historia-janeiro-da', 'resumo-pico-janeiro-mitigar'],
   },
 
@@ -150,9 +219,15 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     pergunta: 'Como replicar a mobilidade interna de 13,2% a.a. de Financeiro & Risco no meu time?',
     recorte: { indicador: 'mobilidade_interna', periodo: P12, filtros: FR, lente: 'gestor' },
     narracao: 'Vou comparar a mobilidade de Financeiro & Risco com as outras diretorias e ver o efeito na retenção.',
-    rodadas: [[decompor('mobilidade_interna', 'diretoria'), decompor('mobilidade_interna', 'especialidade', P12, FR), decompor('turnover_voluntario', 'mobilidadeRecente', P12, FR)]],
+    rodadas: [[decompor('mobilidade_interna', 'diretoria'), decompor('mobilidade_interna', 'especialidade', P12, FR), decompor('turnover_voluntario', 'mobilidadeRecente', JANELA, FR)]],
     mostrar: [{ resultado: 'r1' }, { resultado: 'r3' }],
-    texto: texto(''),
+    texto: texto(
+      'Financeiro & Risco movimenta **13,2% a.a.** das pessoas, 6,64 vezes a mobilidade de Operações (2,0%); a empresa toda tem 3,95% a.a.',
+      '',
+      '- **Como funciona lá:** um programa de rotação entre especialidades; Controladoria & FP&A chega a 15,5%, Tesouraria a 13,4% e Risco de Mercado & Crédito a 10,8%.',
+      '- **Retorno:** de Out/23 a Set/26, quem se movimentou pediu demissão a 4,9% a.a., contra 9,75% de quem não se movimentou.',
+      '- **No seu time:** mapear as especialidades vizinhas para onde as pessoas podem rodar, anunciar as vagas internamente antes de abrir para o mercado e combinar um prazo de permanência em cada posição.',
+    ),
     continuacoes: ['historia-mobilidade-fr', 'mobilidade-interna-retencao'],
   },
   {
@@ -162,9 +237,16 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     pergunta: 'Quais ações práticas podem reverter o eNPS de -47 em Operações?',
     recorte: { indicador: 'enps', periodo: P12, filtros: OP, lente: 'gestor' },
     narracao: 'Vou abrir o eNPS de Operações por trocas de gestor, especialidade e modalidade.',
-    rodadas: [[valor('enps', P12, OP), decompor('enps', 'trocasGestor', P12, OP), decompor('enps', 'especialidade', P12, OP), decompor('enps', 'modalidade', P12, OP)]],
+    rodadas: [[valor('enps', P12, OP), decompor('enps', 'trocasGestor', P12, OP), decompor('enps', 'especialidade', P12, OP), decompor('enps', 'modalidade', P12, OP), serie('enps', P24, OP, 'trimestre')]],
     mostrar: [{ resultado: 'r2' }, { resultado: 'r3', tipo: 'tabela' }],
-    texto: texto(''),
+    texto: texto(
+      'O −47 é o 1T25 (−47,4); no período mais recente, de Dez/25 a Set/26, o eNPS de Operações está em **−40,6**, ainda fora da meta (abaixo).',
+      '',
+      '- **Estabilidade:** quem trocou de gestor 2 ou mais vezes tem eNPS de −54,8, contra −36,9 de quem não trocou; comece com conversas individuais com quem mudou de gestor.',
+      '- **Onde focar:** Compliance & Regulatório tem o pior eNPS (−46,3), contra −37,6 em Back Office & Custódia.',
+      '- **Modalidade não explica:** presencial −39,9, híbrido −41,0 e remoto −41,7, só 1,81 ponto de diferença.',
+      '- **Rotina:** devolver o resultado da pesquisa a cada time, combinar duas ou três ações e mostrar o que mudou no ciclo seguinte.',
+    ),
     continuacoes: ['resumo-enps-operacoes-alavancas', 'historia-operacoes'],
   },
   {
@@ -176,7 +258,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou abrir as saídas de Jan/26 em Distribuição & Assessoria por performance e por tipo.',
     rodadas: [[valor('turnover', JAN26, DA), decompor('turnover', 'performance', JAN26, DA), valor('turnover_voluntario', JAN26, DA), valor('turnover_involuntario', JAN26, DA)]],
     mostrar: [{ resultado: 'r2' }],
-    texto: texto(''),
+    texto: texto(
+      'Em Jan/26 o turnover de Distribuição & Assessoria chegou a **95,8% a.a.**, fora da meta (acima), 3,99 vezes a meta.',
+      '',
+      '- **Duas partes:** os desligamentos (55,6% a.a.) e os pedidos de demissão (40,2% a.a., fora da meta de 16%).',
+      '- **Por performance:** quem estava abaixo do esperado saiu a uma taxa anualizada de 439%; dentro, 96,9%; acima, 50,9%: até os melhores saem em janeiro.',
+      '- **Mitigar o corte:** tratar a baixa performance com planos de desenvolvimento ao longo do ano, em vez de concentrar tudo depois das metas.',
+      '- **Mitigar os pedidos:** reter quem está acima do esperado com parte do bônus diferida e conversas de carreira em dezembro, e deixar a reposição engatilhada antes de janeiro.',
+    ),
     continuacoes: ['historia-janeiro-da', 'resumo-pico-janeiro-da'],
   },
   {
@@ -188,7 +277,14 @@ export const ROTEIRO_RESUMO: EntradaRoteiro[] = [
     narracao: 'Vou buscar o sinal de antecedente de Tecnologia e puxar as séries de horas extras e ausências.',
     rodadas: [[sinais(P12, 'Tecnologia', 'gestor'), serie('absenteismo', P24, TEC), serie('horas_extras_pc', P24, TEC), valor('absenteismo', P12, TEC), valor('horas_extras_pc', P12, TEC)]],
     mostrar: [{ resultado: 'r3' }, { resultado: 'r2' }],
-    texto: texto(''),
+    texto: texto(
+      'Sim: em Tecnologia, as horas extras de um mês antecipam as ausências do mês seguinte (correlação r = 0,76 com 1 mês de defasagem; sem defasagem, r = -0,49).',
+      '',
+      '- **Horas extras:** 9,56 h/pessoa/mês nos últimos 12 meses, fora da meta de 8 (acima), com máximo de 11,63 em Ago/25.',
+      '- **Absenteísmo:** **3,96%**, fora da meta de 3% (acima); o patamar subiu de 2,6% para 4,0% a partir de Nov/24.',
+      '- **O sinal funciona nos dois sentidos:** quando as horas extras caíram para 7,97 em Jul/26, o absenteísmo acompanhou e chegou a 3,35% em Ago/26.',
+      '- **O que fazer:** acompanhar as horas extras do time todo mês como alerta e redistribuir a carga antes de virar ausência.',
+    ),
     continuacoes: ['historia-vagas-tecnologia', 'absenteismo-custo'],
   },
 ];
