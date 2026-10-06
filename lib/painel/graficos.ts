@@ -8,7 +8,8 @@ import { CATALOGO, type IdIndicador, type Polaridade, type Unidade } from '@/lib
 import { DIRETORIAS, MES_INICIO, type Diretoria, type Mes } from '@/lib/analytics/dominio';
 import type { MotorCliente, Periodo } from '@/lib/analytics/engine';
 import type { Sinal } from '@/lib/analytics/signals';
-import { graficoDoSinal, type GraficoLayout, type RecorteLayout } from '@/lib/layout/spec';
+import { graficoDoSinal, type RecorteLayout } from '@/lib/layout/spec';
+import { chaveGrafico } from './chave-grafico';
 import { rotuloIntervalo, rotuloTrimestre } from './periodos';
 
 export interface SerieGrafico {
@@ -22,10 +23,6 @@ export interface SerieGrafico {
 export type DadosGrafico =
   | { tipo: 'serie' | 'antecedente'; diretoria: Diretoria | null; series: SerieGrafico[]; janela: string }
   | { tipo: 'ranking_diretorias'; diretoria: Diretoria | null; indicador: IdIndicador; nome: string; unidade: Unidade; meta: number | null; polaridade: Polaridade; barras: { rotulo: Diretoria; valor: number | null }[]; janela: string };
-
-export function chaveGrafico(g: Pick<GraficoLayout, 'tipo' | 'indicadores' | 'diretoria'>): string {
-  return `${g.tipo}|${g.indicadores.join('>')}|${g.diretoria ?? ''}`;
-}
 
 const metaDe = (id: IdIndicador) => {
   const ind = CATALOGO[id];

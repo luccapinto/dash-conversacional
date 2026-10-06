@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { LayoutSpec, RecorteLayout } from '@/lib/layout/spec';
 import { pedidoDeContexto, type PedidoIA } from '@/lib/ia/pedidos';
 import type { DadosGrafico } from '@/lib/painel/graficos';
-import { chaveGrafico } from '@/lib/painel/graficos';
+import { chaveGrafico } from '@/lib/painel/chave-grafico';
 import type { Contagem, ResumoBase } from '@/lib/painel/resumo';
 import { BotaoIA } from '@/components/ia/BotaoIA';
 import { SugestoesIA } from '@/components/ia/ProvedorIA';
