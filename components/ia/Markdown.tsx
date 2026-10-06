@@ -112,11 +112,10 @@ export function Markdown({ text, marcar = [] }: { text: string; marcar?: readonl
     i++;
     while (i < linhas.length && linhas[i].trim() && !linhas[i].includes('|') && !ehItem(linhas[i]) && !ehNumerado(linhas[i]) && !/^#{1,6}\s/.test(linhas[i])) para.push(linhas[i++]);
     const corpo = para.join(' ');
-    // a conclusão costuma vir toda em negrito; no destaque (serifa) o negrito sai
-    const inteira = primeiro ? /^\*\*([^*]+)\*\*$/.exec(corpo.trim()) : null;
+    // a conclusão costuma vir em negrito; no destaque (serifa) o negrito sai, como na maquete
     blocos.push(
       <p key={k++} className={primeiro ? 'lead' : undefined}>
-        {inline(inteira ? inteira[1] : corpo, `p${k}`, marcar)}
+        {inline(primeiro ? corpo.replace(/\*\*/g, '') : corpo, `p${k}`, marcar)}
       </p>,
     );
     primeiro = false;

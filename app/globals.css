@@ -322,9 +322,11 @@ body.ia-aberto { overflow: hidden; }
 .bloco .kpi { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
 .bloco .kpi .v { font-size: 26px; font-weight: 500; letter-spacing: -.03em; }
 .bloco table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
-.bloco td, .bloco th { padding: 4px 6px; border-bottom: 1px solid var(--line-2); text-align: right; white-space: nowrap; }
-.bloco td:first-child, .bloco th:first-child { text-align: left; white-space: normal; min-width: 170px; }
-.bloco th { font-size: 10.5px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .05em; }
+.bloco td, .bloco th { padding: 4px 5px; border-bottom: 1px solid var(--line-2); text-align: right; white-space: nowrap; }
+/* colunas de texto quebram linha; só os números ficam inteiros (a tabela cabe na gaveta de 460 px) */
+.bloco .txt { text-align: left; white-space: normal; }
+.bloco td:first-child { min-width: 100px; }
+.bloco th { font-size: 10px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; white-space: normal; vertical-align: bottom; }
 .bloco .rolagem { overflow-x: auto; }
 .bloco .lados { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
 .bloco .lados div { border: 1px solid var(--line-2); border-radius: 8px; padding: 8px; }

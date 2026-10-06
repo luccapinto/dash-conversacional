@@ -79,11 +79,11 @@ export function BlocoIA({ bloco: b }: { bloco: BlocoVisualizacao }) {
           <div className="rolagem">
             <table>
               <thead>
-                <tr>{b.colunas.map(c => <th key={c.chave} scope="col">{c.rotulo}</th>)}</tr>
+                <tr>{b.colunas.map(c => <th key={c.chave} scope="col" className={c.formato === 'texto' ? 'txt' : undefined}>{c.rotulo}</th>)}</tr>
               </thead>
               <tbody>
                 {b.linhas.map((l, i) => (
-                  <tr key={i}>{b.colunas.map(c => <td key={c.chave}>{celula(l[c.chave], c, b.unidade)}</td>)}</tr>
+                  <tr key={i}>{b.colunas.map(c => <td key={c.chave} className={c.formato === 'texto' ? 'txt' : undefined}>{celula(l[c.chave], c, b.unidade)}</td>)}</tr>
                 ))}
               </tbody>
             </table>
