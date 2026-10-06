@@ -13,7 +13,7 @@ describe('validarContexto', () => {
       indicador: 'turnover_voluntario',
       periodo,
       filtros: { diretoria: 'Operações', senioridade: 'pleno' },
-      ponto: { mes: '2025-06', dimensao: 'faixaSalarial', segmento: 'piso' },
+      ponto: { mes: '2026-01', dimensao: 'faixaSalarial', segmento: 'piso' },
       lente: 'chro',
     };
     expect(validarContexto(contexto)).toEqual({ ok: true, contexto });
@@ -32,5 +32,6 @@ describe('validarContexto', () => {
     expect(erros({ periodo, lente: 'cfo' })[0]).toMatch(/^lente:/);
     expect(erros({ periodo, filtros: { diretoria: 'Marketing' } })[0]).toMatch(/^filtros\.diretoria:/);
     expect(erros(undefined)[0]).toMatch(/esperado object/);
+    expect(erros({ periodo, ponto: { mes: '2025-06' } })).toEqual(['ponto.mes: 2025-06 fora do período (2025-10 a 2026-09)']);
   });
 });

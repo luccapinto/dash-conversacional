@@ -6,11 +6,24 @@
 import { describe, expect, it } from 'vitest';
 import { motorCliente } from '@/lib/analytics/cliente';
 import { DIRETORIAS } from '@/lib/analytics/dominio';
-import { LENTES } from '@/lib/analytics/signals';
+import { CATALOGO } from '@/lib/analytics/catalog';
+import { detectarSinais, formatar, LENTES } from '@/lib/analytics/signals';
+import { verificarNumeros } from '@/lib/agente/guarda';
 import { provedoresDoAmbiente } from '@/lib/agente/llm';
 import { layoutDeterministico } from '@/lib/layout/deterministico';
 import { gerarLayout, prepararEntradaIA, type RespostaLayoutIA } from '@/lib/layout/gerador';
-import { ancorasDoSinal, chaveLayout, COMBINACOES_PADRAO, PERIODOS_PADRAO, sinaisDoRecorte, validarLayout, type RecorteLayout } from '@/lib/layout/spec';
+import {
+  ancorasDoSinal,
+  chaveLayout,
+  COMBINACOES_PADRAO,
+  contextoDoSinal,
+  MAX_SINAIS_LAYOUT,
+  PERIODOS_PADRAO,
+  sinaisDoRecorte,
+  validarLayout,
+  valoresDosSinais,
+  type RecorteLayout,
+} from '@/lib/layout/spec';
 import { erroHttp, fetchFalso, texto } from '../agente/sse';
 
 const provedores = provedoresDoAmbiente({ DEEPSEEK_API_KEY: 'chave-ds-teste', OPENROUTER_API_KEY: 'chave-or-teste' });
@@ -76,6 +89,33 @@ describe('validarLayout', () => {
 
   it('as âncoras são pontos exatos dos sinais', () => {
     for (const s of sinais) for (const a of ancorasDoSinal(s)) expect(s.pontos.some(p => p.rotulo === a.rotulo && p.indicador === a.indicador && p.periodo.inicio === a.periodo.inicio)).toBe(true);
+  });
+
+  it('só aceita números dos sinais de entrada: um valor real de outro sinal ou de um ponto não ancorado é recusado', () => {
+    const todos = detectarSinais(motorCliente, { periodo: recorte.periodo, diretoria: 'Operações', lente: 'chro' });
+    expect(sinais).toEqual(todos.slice(0, MAX_SINAIS_LAYOUT));
+    const permitidos = valoresDosSinais(sinais);
+    const recusavel = (pontos: typeof todos[number]['pontos']) =>
+      pontos.map(p => (p.valor === null ? null : formatar(p.valor, CATALOGO[p.indicador].unidade))).find(t => t && verificarNumeros(t, permitidos).naoVerificados.length === 1);
+
+    const deOutroSinal = recusavel(todos.slice(MAX_SINAIS_LAYOUT).flatMap(s => s.pontos));
+    const daSerie = recusavel(sinais.flatMap(s => s.pontos));
+    for (const real of [deOutroSinal, daSerie]) {
+      expect(real).toBeTruthy();
+      const erros = validarLayout({ ...base, manchete: `Operações registra ${real} no período` }, sinais);
+      expect(erros).toHaveLength(1);
+      expect(erros[0]).toMatch(/^manchete: número não rastreável nos sinais/);
+    }
+  });
+
+  it('o deep dive só leva o ponto clicado quando é um mês do mesmo indicador dentro do período', () => {
+    for (const s of sinais) {
+      for (const a of ancorasDoSinal(s)) {
+        const { ponto, indicador } = contextoDoSinal(s, recorte, a);
+        const dentro = a.periodo.inicio === a.periodo.fim && a.periodo.fim >= recorte.periodo.inicio && a.periodo.fim <= recorte.periodo.fim;
+        expect(ponto?.mes, `${s.id} ${a.rotulo}`).toBe(dentro && a.indicador === indicador ? a.periodo.fim : undefined);
+      }
+    }
   });
 });
 

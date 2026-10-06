@@ -168,6 +168,12 @@ async function main() {
       return `| ${l.n} | ${l.caso.contexto ? 'deep dive' : 'livre'} | ${l.caso.cobre} | ${l.caso.pergunta} | ${l.ferramentas.join(', ')} | ${l.esperadaOk ? '✓' : `✗ (${l.caso.esperadas.join('/')})`} | ${v ? `${v.verificados}/${v.total} (${pct(v.verificados, v.total)})` : '—'} | ${s(l.m.latenciaPrimeiroTextoMs)} s | ${s(l.m.latenciaRespostaMs)} s | ${s(l.m.latenciaTotalMs)} s | ${l.m.uso.entrada}/${l.m.uso.cacheEntrada}/${l.m.uso.saida} |`;
     }),
     '',
+    '## Erros de tools (devolvidos ao modelo)',
+    '',
+    ...(linhas.some(l => l.m.ferramentas.some(f => f.erro))
+      ? linhas.flatMap(l => l.m.ferramentas.filter(f => f.erro).map(f => `- #${l.n} ${f.nome}: ${f.erro}`))
+      : ['Nenhum.']),
+    '',
     '## Números não verificados',
     '',
     ...(linhas.some(l => l.m.verificacao?.naoVerificados.length)

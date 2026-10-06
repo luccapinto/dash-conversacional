@@ -148,8 +148,15 @@ export function chaveLayout(r: RecorteLayout): string {
   return `${r.periodo.inicio}..${r.periodo.fim}|${r.diretoria ?? 'Geral'}|${r.lente}`;
 }
 
+/** Sinais que o layout usa (IA e determinístico): os de maior score para o público */
+export const MAX_SINAIS_LAYOUT = 12;
+
+/**
+ * Os sinais de entrada do layout: os MAX_SINAIS_LAYOUT primeiros do detector. A IA vê exatamente
+ * estes, o layout determinístico usa estes e a guarda de números só aceita números destes.
+ */
 export function sinaisDoRecorte(motor: MotorCliente, r: RecorteLayout): Sinal[] {
-  return detectarSinais(motor, { periodo: r.periodo, diretoria: r.diretoria ?? undefined, lente: r.lente });
+  return detectarSinais(motor, { periodo: r.periodo, diretoria: r.diretoria ?? undefined, lente: r.lente }).slice(0, MAX_SINAIS_LAYOUT);
 }
 
 // ── Sinais → estrutura (compartilhado pelo layout determinístico e pelo da IA) ──
@@ -202,21 +209,26 @@ export function graficoDoSinal(s: Sinal, r: RecorteLayout): Omit<GraficoLayout, 
   }
 }
 
-/** Contexto do botão "Investigar" a partir de um sinal (e do ponto ancorado, se mensal) */
+/**
+ * Contexto do botão "Investigar" a partir de um sinal. A âncora vira "ponto clicado" só se for um
+ * mês do mesmo indicador e dentro do período do recorte (antecedentes e quebras ancoram no histórico).
+ */
 export function contextoDoSinal(s: Sinal, r: RecorteLayout, ancora?: AncoraLayout): ContextoDeepDive {
-  const mensal = ancora && ancora.periodo.inicio === ancora.periodo.fim;
+  const indicador = s.indicadores[s.indicadores.length - 1];
+  const mes = ancora?.periodo.fim;
+  const ponto = ancora && mes && ancora.indicador === indicador && ancora.periodo.inicio === mes && mes >= r.periodo.inicio && mes <= r.periodo.fim;
   return {
-    indicador: s.indicadores[s.indicadores.length - 1],
+    indicador,
     periodo: r.periodo,
     ...(s.diretoria ? { filtros: { diretoria: s.diretoria } } : {}),
-    ...(mensal ? { ponto: { mes: ancora.periodo.fim } } : {}),
+    ...(ponto ? { ponto: { mes } } : {}),
     lente: r.lente,
   };
 }
 
-/** Todo número que um texto do layout pode citar: evidências e valores dos pontos dos sinais */
+/** Todo número que um texto do layout pode citar: a evidência e os valores das âncoras dos sinais de entrada (não a série inteira) */
 export function valoresDosSinais(sinais: readonly Sinal[]): number[] {
-  return coletarValores(sinais.flatMap(s => [s.evidencia, ...s.pontos.map(p => p.valor)]));
+  return coletarValores(sinais.flatMap(s => [s.evidencia, ...ancorasDoSinal(s).map(a => valorDaAncora(s, a))]));
 }
 
 // ── Validação ─────────────────────────────────────────────────────────────────

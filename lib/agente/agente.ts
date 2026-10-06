@@ -58,7 +58,7 @@ export interface MetricasAgente {
   /** primeiro texto da rodada que deu a resposta final */
   latenciaRespostaMs: number | null;
   latenciaTotalMs: number;
-  ferramentas: Array<{ nome: string; ok: boolean; duracaoMs: number }>;
+  ferramentas: Array<{ nome: string; ok: boolean; duracaoMs: number; erro?: string }>;
   blocos: number;
   texto: string;
   verificacao: Verificacao | null;
@@ -139,7 +139,7 @@ export async function executarAgente(entrada: EntradaAgente, opcoes: OpcoesAgent
       for (const res of resultados) {
         opcoes.emitir({ tipo: 'passo', resultado: res.id, ferramenta: res.ferramenta, rotulo: res.rotulo, estado: res.ok ? 'fim' : 'erro' });
         for (const bloco of res.blocos ?? []) opcoes.emitir({ tipo: 'bloco', bloco });
-        metricas.ferramentas.push({ nome: res.ferramenta, ok: res.ok, duracaoMs: res.duracaoMs });
+        metricas.ferramentas.push({ nome: res.ferramenta, ok: res.ok, duracaoMs: res.duracaoMs, ...(res.erro ? { erro: res.erro } : {}) });
         mensagens.push({ role: 'tool', tool_call_id: res.idChamada, content: JSON.stringify(res.paraModelo) });
       }
       metricas.rodadasFerramentas++;

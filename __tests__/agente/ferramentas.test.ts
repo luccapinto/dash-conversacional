@@ -64,6 +64,18 @@ describe('execução', () => {
     expect((desconhecida.paraModelo as { erro: string }).erro).toMatch(/Ferramentas disponíveis: listarIndicadores, valor/);
   });
 
+  it('razão contra a meta só quando faz sentido (não em pontos de eNPS nem com meta negativa)', async () => {
+    const sessao = novaSessao();
+    const resumo = async (indicador: string, diretoria: string) =>
+      (await rodar(sessao, 'valor', { indicador, periodo, filtros: { diretoria } })).paraModelo as Record<string, unknown>;
+    const turnover = await resumo('turnover', 'Operações');
+    expect(turnover.razaoMeta).toBeCloseTo((turnover.valor as number) / 24, 1);
+    const enps = await resumo('enps', 'Financeiro & Risco');
+    expect(enps.valor as number).toBeGreaterThan(0);
+    expect(enps).not.toHaveProperty('razaoMeta');
+    expect(await resumo('gap_salarial_genero', 'Operações')).not.toHaveProperty('razaoMeta');
+  });
+
   it('sinais e catálogo respondem sem tocar no motor do roster', async () => {
     const sessao = novaSessao();
     const sinais = await rodar(sessao, 'sinais', { periodo, diretoria: 'Operações' });

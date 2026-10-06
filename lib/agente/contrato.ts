@@ -81,6 +81,8 @@ export function validarContexto(valor: unknown): ResultadoContexto {
   const contexto = valor as ContextoDeepDive;
   if (contexto.periodo.inicio > contexto.periodo.fim) erros.push('periodo: início depois do fim');
   const { ponto } = contexto;
+  const { inicio, fim } = contexto.periodo;
+  if (ponto?.mes !== undefined && (ponto.mes < inicio || ponto.mes > fim)) erros.push(`ponto.mes: ${ponto.mes} fora do período (${inicio} a ${fim})`);
   if (ponto?.segmento !== undefined) {
     if (!ponto.dimensao) erros.push('ponto.segmento: informe a dimensão do segmento');
     else if (!(VALORES_DIMENSAO[ponto.dimensao] as readonly string[]).includes(ponto.segmento)) {

@@ -34,8 +34,6 @@ import {
   type RecorteLayout,
 } from './spec';
 
-/** Sinais mostrados à IA (os de maior score para o público) */
-const MAX_SINAIS_IA = 12;
 const MAX_TOKENS_SPEC = 1500;
 
 // ── Entrada da IA ─────────────────────────────────────────────────────────────
@@ -60,7 +58,7 @@ export interface EntradaIA {
 export function prepararEntradaIA(sinais: readonly Sinal[]): EntradaIA {
   let nAncora = 0;
   return {
-    sinais: sinais.slice(0, MAX_SINAIS_IA).map((sinal, i) => ({
+    sinais: sinais.map((sinal, i) => ({
       ref: `s${i + 1}`,
       sinal,
       ancoras: ancorasDoSinal(sinal).map(ancora => {
