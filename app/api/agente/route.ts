@@ -6,8 +6,11 @@
  * pedidos ao modelo e 8 a 13 s (avaliação da fase 2). O pior caso (7 pedidos, cada um podendo
  * esperar 20 s sem chunk na principal e de novo na reserva) passaria de 120 s; nesse caso a
  * plataforma encerra a função e o stream termina SEM o evento `fim` nem `erro`. A UI (fase 3)
- * precisa tratar stream encerrado sem `fim` como resposta interrompida. Limite do plano Hobby da
- * Vercel com fluid compute: 300 s.
+ * precisa tratar stream encerrado sem `fim` como resposta interrompida.
+ *
+ * O valor depende do fluid compute da Vercel, ligado por padrão neste projeto: com ele o plano
+ * Hobby aceita até 300 s. Sem fluid compute o teto do Hobby é 60 s e o deploy recusa 120; quem
+ * desligar precisa baixar maxDuration para 60.
  */
 
 import { motorCliente } from '@/lib/analytics/cliente';

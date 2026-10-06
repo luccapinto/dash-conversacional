@@ -4,7 +4,8 @@
  * Next não pode exportar nada além dos métodos e da configuração do segmento).
  *
  * Erros antes do stream saem como JSON com status HTTP (400, 429, 503) e mensagem em PT-BR sem
- * detalhe interno; depois de aberto o stream, só pelo evento `erro`.
+ * detalhe interno; depois de aberto o stream, só pelo evento `erro`. A cota por IP só é debitada
+ * de pedido válido; em silêncio longo o stream manda um comentário de heartbeat.
  */
 
 import { executarAgente, type MetricasAgente, type OpcoesAgente } from './agente';
@@ -36,8 +37,22 @@ export function criarLimitador({ limite, janelaMs, agora = Date.now }: OpcoesLim
   };
 }
 
-export function ipDe(req: Request): string {
-  return req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'local';
+/** IP do cliente pelos cabeçalhos do proxy; null se nenhum veio */
+export function ipDe(req: Request): string | null {
+  return req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || null;
+}
+
+/**
+ * Limite por IP. Pedido sem cabeçalho de IP cai num balde global único, mais rígido (por padrão um
+ * terço do limite de um IP): nunca num balde compartilhado com a folga de um IP só.
+ */
+export function criarLimitadorPorIp({ limiteSemIp, ...opcoes }: OpcoesLimitador & { limiteSemIp?: number }): (req: Request) => boolean {
+  const porIp = criarLimitador(opcoes);
+  const semIp = criarLimitador({ ...opcoes, limite: limiteSemIp ?? Math.max(1, Math.floor(opcoes.limite / 3)) });
+  return req => {
+    const ip = ipDe(req);
+    return ip ? porIp(ip) : semIp('');
+  };
 }
 
 /**
@@ -130,11 +145,12 @@ export function prepararEntrada(corpo: unknown): EntradaPreparada {
 export type ConfigAgente = Omit<OpcoesAgente, 'emitir' | 'sinal'>;
 
 const LIMITE_PADRAO: OpcoesLimitador = { limite: 10, janelaMs: 60_000 };
+/** Silêncio máximo no stream antes de um comentário `: ping` (proxy ou plataforma não fecham a conexão ociosa) */
+export const HEARTBEAT_MS = 10_000;
 
-export function criarHandlerAgente(config: () => ConfigAgente, limite: OpcoesLimitador = LIMITE_PADRAO): (req: Request) => Promise<Response> {
-  const permitir = criarLimitador(limite);
+export function criarHandlerAgente(config: () => ConfigAgente, limite: OpcoesLimitador = LIMITE_PADRAO, heartbeatMs = HEARTBEAT_MS): (req: Request) => Promise<Response> {
+  const permitir = criarLimitadorPorIp(limite);
   return async req => {
-    if (!permitir(ipDe(req))) return respostaJson(429, { erro: MENSAGEM_LIMITE });
     let corpo: unknown;
     try {
       corpo = await req.json();
@@ -143,6 +159,7 @@ export function criarHandlerAgente(config: () => ConfigAgente, limite: OpcoesLim
     }
     const preparada = prepararEntrada(corpo);
     if (!preparada.ok) return respostaJson(400, { erro: 'Pedido inválido.', detalhes: preparada.erros });
+    if (!permitir(req)) return respostaJson(429, { erro: MENSAGEM_LIMITE });
     const cfg = config();
     if (cfg.provedores.length === 0) return respostaJson(503, { erro: 'O agente está indisponível: a IA não foi configurada neste ambiente.' });
     const log = cfg.log ?? ((l: string) => console.info(l));
@@ -151,20 +168,32 @@ export function criarHandlerAgente(config: () => ConfigAgente, limite: OpcoesLim
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         let aberto = true;
-        const emitir = (e: EventoAgente) => {
+        // comentário SSE (o cliente ignora) depois de heartbeatMs sem nada escrito
+        let pulso: NodeJS.Timeout | undefined;
+        const armar = () => {
+          clearTimeout(pulso);
+          pulso = setTimeout(() => escrever(': ping\n\n'), heartbeatMs);
+        };
+        const escrever = (texto: string) => {
           if (!aberto) return;
           try {
-            controller.enqueue(codificador.encode(`data: ${JSON.stringify(e)}\n\n`));
+            controller.enqueue(codificador.encode(texto));
           } catch {
             aberto = false;
+            return;
           }
+          armar();
         };
+        const emitir = (e: EventoAgente) => escrever(`data: ${JSON.stringify(e)}\n\n`);
+        armar();
         const m: MetricasAgente = await executarAgente(preparada.entrada, { ...cfg, emitir, sinal: req.signal });
         log(
           `[agente] ${m.erro ? 'erro' : 'ok'} · rodadas ${m.rodadas} (tools ${m.rodadasFerramentas}) · provedores ${m.provedores.join('>') || '-'} · ` +
             `tokens ${m.uso.entrada}/${m.uso.cacheEntrada} cache/${m.uso.saida} · 1º texto ${m.latenciaPrimeiroTextoMs ?? '-'} ms · total ${m.latenciaTotalMs} ms · ` +
             `números ${m.verificacao ? `${m.verificacao.verificados}/${m.verificacao.total}` : '-'}`,
         );
+        clearTimeout(pulso);
+        aberto = false;
         try {
           controller.close();
         } catch {

@@ -59,13 +59,14 @@ describe('GET /api/layout', () => {
     expect(pedidos).toHaveLength(4);
   });
 
-  it('400 para recorte inválido e 429 acima do limite por IP', async () => {
+  it('400 para recorte inválido (sem gastar a cota) e 429 acima do limite por IP', async () => {
     const { h } = handler([], { limite: 2, janelaMs: 60_000 });
     const invalido = await h(get('inicio=2026-09&fim=2025-10', '7.7.7.7'));
     expect(invalido.status).toBe(400);
     expect((await invalido.json()).detalhes).toEqual(['periodo: início depois do fim']);
     expect((await h(get('inicio=2025-10&fim=2026-09&diretoria=Marketing', '7.7.7.7'))).status).toBe(400);
-    expect((await h(get('inicio=2025-10&fim=2026-09', '7.7.7.7'))).status).toBe(429);
+    const padrao = 'inicio=2025-10&fim=2026-09';
+    expect([(await h(get(padrao, '7.7.7.7'))).status, (await h(get(padrao, '7.7.7.7'))).status, (await h(get(padrao, '7.7.7.7'))).status]).toEqual([200, 200, 429]);
   });
 
   it('403 para Origin ou Referer de outro domínio e sem nenhum dos dois, sem chamar a IA', async () => {

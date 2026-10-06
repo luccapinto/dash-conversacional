@@ -12,7 +12,7 @@
 import { DIRETORIAS, MESES, type Diretoria } from '@/lib/analytics/dominio';
 import type { MotorCliente } from '@/lib/analytics/engine';
 import { LENTES, type Lente } from '@/lib/analytics/signals';
-import { criarLimitador, ipDe, MENSAGEM_LIMITE, mesmaOrigem, respostaJson, type OpcoesLimitador } from '@/lib/agente/http';
+import { criarLimitadorPorIp, MENSAGEM_LIMITE, mesmaOrigem, respostaJson, type OpcoesLimitador } from '@/lib/agente/http';
 import { custoEstimadoUsd, type Provedor, type Uso } from '@/lib/agente/llm';
 import { layoutDeterministico } from './deterministico';
 import { gerarLayout, type ResultadoLayout } from './gerador';
@@ -95,14 +95,14 @@ export function criarHandlerLayout(
   limite: OpcoesLimitador = { limite: 30, janelaMs: 60_000 },
   cota: CotaLayout = COTA_LAYOUT,
 ): (req: Request) => Promise<Response> {
-  const permitir = criarLimitador(limite);
+  const permitir = criarLimitadorPorIp(limite);
   const orcamento = criarCota(cota);
   const cache = new Map<string, Promise<ResultadoLayout>>();
   return async req => {
     if (!mesmaOrigem(req)) return respostaJson(403, { erro: 'Origem não permitida.' });
-    if (!permitir(ipDe(req))) return respostaJson(429, { erro: MENSAGEM_LIMITE });
     const lido = lerRecorte(new URL(req.url).searchParams);
     if (!lido.ok) return respostaJson(400, { erro: 'Recorte inválido.', detalhes: lido.erros });
+    if (!permitir(req)) return respostaJson(429, { erro: MENSAGEM_LIMITE });
     const cfg = config();
     const chave = chaveLayout(lido.recorte);
     const pre = cfg.padrao[chave];
