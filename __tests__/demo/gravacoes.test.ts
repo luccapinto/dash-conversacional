@@ -17,7 +17,7 @@ import { MIN_AMOSTRA } from '@/lib/analytics/engine';
 import { motorServidor } from '@/lib/analytics/servidor';
 import type { BlocoVisualizacao, EventoAgente } from '@/lib/agente/contrato';
 import { P12 } from '@/lib/demo/consultas';
-import { gravar, itemDoIndice } from '@/lib/demo/gravar';
+import { gravar, itemDoIndice, supressaoUnica } from '@/lib/demo/gravar';
 import { ROTEIRO, validarRoteiro } from '@/lib/demo/roteiro';
 import type { GravacaoDemo, IndiceDemo } from '@/lib/demo/tipos';
 import { layoutPadrao } from '@/lib/layout/padrao';
@@ -117,10 +117,12 @@ describe('cada gravação', () => {
     }
   });
 
-  it('recorte de pessoas abaixo do mínimo sai sem valor e com o aviso; todo n que sobra é ≥ mínimo', () => {
+  it('recorte de pessoas abaixo do mínimo sai sem valor e com o aviso, e não sai por subtração; todo n que sobra é ≥ mínimo', () => {
     for (const g of gravacoes) {
       for (const b of blocos(g.eventos)) {
         expect(vazamentos(b), g.id).toEqual([]);
+        // um único segmento suprimido sai do total menos os outros
+        expect(supressaoUnica(b), `${g.id} ${b.id}: supressão complementar`).toBe(false);
         if (!CATALOGO[b.indicador].amostra.pessoas) continue;
         const json = JSON.stringify(b);
         if (json.includes('"amostraSuficiente":false')) expect(b.aviso, `${g.id} ${b.id}`).toBe(AVISO);

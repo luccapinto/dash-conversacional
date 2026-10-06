@@ -12,7 +12,7 @@
 import { CATALOGO, type IdIndicador } from '@/lib/analytics/catalog';
 import type { Lente } from '@/lib/analytics/signals';
 import { executarAgente, type MetricasAgente } from '@/lib/agente/agente';
-import type { ContextoDeepDive, EventoAgente, NomeFerramenta, TipoBloco } from '@/lib/agente/contrato';
+import type { BlocoVisualizacao, ContextoDeepDive, EventoAgente, NomeFerramenta, TipoBloco } from '@/lib/agente/contrato';
 import { criarSessao, type AmbienteFerramentas } from '@/lib/agente/ferramentas';
 import type { ChamadaFerramenta, Provedor } from '@/lib/agente/llm';
 import type { GravacaoDemo, GrupoDemo, ItemDemo } from './tipos';
@@ -88,6 +88,18 @@ export interface ResultadoGravacao {
   problemas: string[];
 }
 
+/** Proporção sem número para a guarda conferir: o texto cita a razão que está no resultado */
+const CONTA_POR_EXTENSO = /\b(dobro|triplo|triplic\w*|qu[aá]drupl\w*|metade)\b/i;
+
+/**
+ * Quebra de um indicador de pessoas com exatamente um segmento suprimido: com o total e os outros
+ * segmentos à mostra, o suprimido sai por subtração (supressão complementar).
+ */
+export function supressaoUnica(b: BlocoVisualizacao): boolean {
+  const itens: ReadonlyArray<{ valor: unknown; n: unknown }> = b.tipo === 'barras' ? b.barras : b.tipo === 'tabela' ? b.linhas : [];
+  return itens.length > 1 && itens.filter(i => i.valor === null && i.n === null).length === 1;
+}
+
 export async function gravar(e: EntradaRoteiro, ambiente: AmbienteFerramentas): Promise<ResultadoGravacao> {
   const eventos: EventoAgente[] = [];
   const metricas = await executarAgente(
@@ -104,6 +116,9 @@ export async function gravar(e: EntradaRoteiro, ambiente: AmbienteFerramentas): 
   if (!v) problemas.push('sem verificação da guarda');
   else if (v.verificados !== v.total) problemas.push(`guarda: ${v.verificados}/${v.total} números conferidos; fora: ${v.naoVerificados.map(n => `"${n.texto}"`).join(', ')}`);
   if (metricas.blocos !== e.mostrar.length) problemas.push(`${metricas.blocos} blocos exibidos, o roteiro pede ${e.mostrar.length}`);
+  const conta = CONTA_POR_EXTENSO.exec(`${e.narracao}\n${e.texto}`);
+  if (conta) problemas.push(`"${conta[0]}": proporção por extenso é conta fora dos resultados; cite a razão do resultado`);
+  for (const ev of eventos) if (ev.tipo === 'bloco' && supressaoUnica(ev.bloco)) problemas.push(`${ev.bloco.id}: só um segmento suprimido, ele sai por subtração do total`);
   return { gravacao: { id: e.id, pergunta: e.pergunta, recorte: e.recorte, eventos: semTempo }, metricas, problemas };
 }
 

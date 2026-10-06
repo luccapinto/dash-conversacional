@@ -1030,14 +1030,14 @@
     "lente": "chro"
    },
    "continuacoes": [
-    "folha-senioridade",
+    "folha-crescimento",
     "custo-turnover"
    ]
   },
   {
-   "id": "folha-senioridade",
+   "id": "folha-crescimento",
    "grupo": "indicador",
-   "pergunta": "Como a folha se distribui por senioridade?",
+   "pergunta": "A folha está crescendo mais rápido que o quadro?",
    "indicador": "folha",
    "nome": "Folha mensal",
    "indicadores": [
@@ -1053,7 +1053,7 @@
    },
    "continuacoes": [
     "folha",
-    "headcount"
+    "headcount-diretorias"
    ]
   },
   {
