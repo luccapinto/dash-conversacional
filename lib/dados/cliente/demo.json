@@ -333,7 +333,7 @@
   {
    "id": "vagas-abertas-tecnologia",
    "grupo": "indicador",
-   "pergunta": "Por que as vagas de Tecnologia se acumulam?",
+   "pergunta": "Por que Tecnologia concentra tantas vagas abertas?",
    "indicador": "vagas_abertas",
    "nome": "Vagas abertas",
    "indicadores": [
