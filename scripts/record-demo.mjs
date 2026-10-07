@@ -83,20 +83,20 @@ await d.card(
 await page.getByRole('heading', { name: 'Painel gerencial' }).waitFor();
 await d.hold(800);
 await d.record();
-await d.hold(3400);
+await d.hold(3000);
 await d.card(null, 700);
 
 // ── 1 · Gerencial e filtro ──────────────────────────────────────────
 await d.caption('Gerencial', 'Os 25 indicadores do painel: mês e acumulado do ano, cada um contra a sua meta');
 await d.pointAt(page.locator('.th1 .grupo').nth(1), 900);
-await d.hold(1800);
+await d.hold(1500);
 await d.choose(page.getByLabel('Diretoria'), 'tecnologia', 800);
 await page.getByText(/25 indicadores · Tecnologia · .*12 fora \(YTD\)/).waitFor();
 await d.caption('Filtros', 'Filtro na URL e o motor recalcula tudo: em Tecnologia, 12 das 15 metas estão fora no ano');
 await d.hold(600);
 const linhaTV = page.getByRole('link', { name: 'Turnover voluntário: abrir a página do indicador' });
 await d.pointAt(linhaTV.locator('.by').first(), 900);
-await d.hold(2600);
+await d.hold(2200);
 
 // ── 2 · Resumo executivo ────────────────────────────────────────────
 await d.click(page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Resumo executivo' }));
@@ -106,7 +106,7 @@ await page.getByText('Leitura da IA a partir de 27 sinais calculados').waitFor()
 await d.caption('Resumo executivo', 'A IA lê os 27 sinais que o motor detectou em Tecnologia e escreve a manchete');
 await d.hold(400);
 await d.pointAt(manchete, 900);
-await d.hold(2400);
+await d.hold(2200);
 
 // ── 3 · Lente ───────────────────────────────────────────────────────
 const antes = await manchete.textContent();
@@ -116,31 +116,33 @@ await d.caption('Lentes', 'Mesmos números, outro público: para o CEO, a IA tro
 await d.hold(900);
 const destaques = page.locator('section[aria-labelledby="t-destaques"]');
 await d.pointAt(destaques.getByText('Turnover voluntário em Tecnologia supera a meta'), 900);
-await d.hold(2600);
+await d.hold(2400);
 
 // ── 4 · Indicador ───────────────────────────────────────────────────
 await d.click(page.locator('.motivo').getByRole('link', { name: 'Turnover voluntário', exact: true }));
 await page.getByRole('heading', { level: 1, name: 'Turnover voluntário' }).waitFor();
 await d.caption('Indicador', 'A ficha do indicador: pergunta, fórmula, meta, mês e acumulado do ano');
-await d.hold(1600);
+await d.hold(1300);
 await d.choose(page.getByLabel('Diretoria'), { label: 'Empresa toda' }, 800);
 const quebra = page.getByRole('heading', { name: 'Quebra por diretoria' });
 await quebra.waitFor();
 await d.caption('Indicador', 'Na empresa toda, 24 meses de evolução e a quebra por diretoria, do pior ao melhor');
 await d.hold(500);
 await d.frame(page.getByText('Evolução mês a mês', { exact: true }));
-await d.hold(1600);
+await d.hold(1400);
 await d.frame(quebra);
 // a primeira linha tem de ser Tecnologia, a pior no acumulado do ano
 const linhaTec = page.locator('table.tdir tbody tr').first().filter({ hasText: 'Tecnologia' });
 await d.pointAt(linhaTec, 900);
-await d.hold(2200);
+await d.hold(2000);
 
 // ── 5 · Deep dive ✦ ─────────────────────────────────────────────────
 await d.scrollTop();
 await d.click(page.locator('main').getByRole('button', { name: /O que influenciou/ }).first());
 const gaveta = page.getByRole('dialog', { name: 'O que influenciou o resultado' });
 await gaveta.locator('.passos li').first().waitFor();
+// a gaveta entra deslizando da direita; medir antes do fim da animação põe o cursor na borda
+await gaveta.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)).then(() => true));
 await d.caption('Deep dive', 'Resposta gravada do agente: ele consulta o motor com ferramentas e narra cada passo');
 await d.pointAt(gaveta.locator('.passos'), 800);
 await gaveta.getByText('Analisando…').waitFor();
@@ -159,7 +161,7 @@ await rolarGaveta(blocos.nth(1));
 await d.hold(1300);
 await rolarGaveta(gaveta.locator('details.calc').first(), 160);
 await d.pointAt(selo, 700);
-await d.hold(2200);
+await d.hold(2000);
 
 // ── 6 · Como calculei ───────────────────────────────────────────────
 const calc = gaveta.locator('details.calc').first();
@@ -168,12 +170,18 @@ await calc.locator('li').first().waitFor();
 await d.caption('Como calculei', 'O rastro de cada conta: função, argumentos, fórmula, período efetivo e n');
 await rolarGaveta(calc);
 await d.pointAt(calc.locator('li').first().locator('code'), 800);
-await d.hold(3000);
+await d.hold(2800);
 
 // ── 7 · Continuação ─────────────────────────────────────────────────
 const continuar = gaveta.locator('.continuar').getByRole('button', { name: 'Por que estamos perdendo talento em Tecnologia?' });
 await d.click(continuar);
 await gaveta.locator('.msg-u').nth(1).waitFor();
+// a pergunta nova sobe para o topo da conversa e a resposta é escrita à vista (fix(ia) do PR #9)
+await page.waitForFunction(() => {
+  const pergunta = [...document.querySelectorAll('.drawer .msg-u')].at(-1);
+  const fio = pergunta?.closest('.fio');
+  return fio && pergunta.getBoundingClientRect().top - fio.getBoundingClientRect().top < 40;
+}, null, { timeout: 5_000 });
 await d.caption('Continuação', 'Uma pergunta pronta segue a investigação: por que Tecnologia perde talentos');
 await d.pointAt(gaveta.locator('.passos').nth(1), 800);
 const selo2 = gaveta.locator('.verif').nth(1);
@@ -189,18 +197,18 @@ const faixa = gaveta
 await rolarGaveta(faixa);
 await d.caption('Continuação', 'Em Tecnologia, o turnover vai de 57,6% a.a. no piso da faixa salarial a 13,8% no teto');
 await d.pointAt(faixa, 800);
-await d.hold(3200);
+await d.hold(3000);
 await rolarGaveta(gaveta.locator('details.calc').nth(1), 160);
 await d.caption('Continuação', 'E de novo a guarda: 16 de 16 números da resposta conferidos contra o motor');
 await d.pointAt(selo2, 700);
-await d.hold(2000);
+await d.hold(1800);
 
 // ── 8 · Encerramento ────────────────────────────────────────────────
 await d.caption('', '');
 await d.card(
   `<h1>Dashboard Conversacional</h1><p>Next.js 16 · React 19 · TypeScript · gráficos em SVG próprio · DeepSeek na IA ao vivo (opcional)</p>` +
     `<small>github.com/luccapinto/dash-conversacional<br>demo ao vivo: dash-conversacional.vercel.app</small>`,
-  4200,
+  4000,
 );
 
 await d.finish(OUT);
