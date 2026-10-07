@@ -279,6 +279,10 @@ body.ia-aberto { overflow: hidden; }
 .ctx { display: flex; flex-wrap: wrap; gap: 6px; }
 .ctx span { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line-2); color: var(--muted); }
 .msg-u { align-self: flex-end; max-width: 88%; background: var(--ink); color: var(--bg); padding: 9px 12px; border-radius: 12px 12px 2px 12px; font-size: 13px; }
+.turno { display: flex; flex-direction: column; gap: 12px; min-width: 0; flex-shrink: 0; }
+/* O turno novo ocupa ao menos a altura da conversa visível. Sem essa reserva, a conversa acaba logo abaixo da pergunta nova:
+   o scrollIntoView para no fim, a pergunta fica no pé da gaveta e a resposta é escrita fora da vista. */
+.turno.novo { min-height: 100%; }
 .narracao { font-size: 12.5px; color: var(--muted); font-style: italic; margin: 0; }
 .passos { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); list-style: none; }
 .passos li { display: flex; gap: 8px; align-items: center; }
