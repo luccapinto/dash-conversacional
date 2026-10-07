@@ -78,7 +78,7 @@ function Gaveta({ loja, conversa, sugestoes }: { loja: LojaIA; conversa: Convers
     };
   }, [loja]);
 
-  // pergunta nova: rola até ela
+  // pergunta nova: rola até ela, no topo (o turno novo reserva a altura da conversa; ver .turno.novo)
   const nTurnos = conversa.turnos.length;
   useEffect(() => {
     const msgs = fio.current?.querySelectorAll('.msg-u');
@@ -141,13 +141,14 @@ function Gaveta({ loja, conversa, sugestoes }: { loja: LojaIA; conversa: Convers
             </>
           )}
           {demo && conversa.turnos.length === 0 && <div className="aviso">Escolha uma pergunta pronta: a resposta gravada mostra como o agente consulta o motor e escreve a análise.</div>}
-          {conversa.turnos.map((t, i) =>
-            demo ? (
-              <TurnoDemo key={i} turno={t} ultimo={i === conversa.turnos.length - 1} tela={conversa.pedido.contexto} loja={loja} />
-            ) : (
-              <TurnoIA key={i} turno={t} ultimo={i === conversa.turnos.length - 1} aoRepetir={() => loja.tentarDeNovo()} />
-            ),
-          )}
+          {conversa.turnos.map((t, i) => {
+            const ultimo = i === conversa.turnos.length - 1;
+            return (
+              <div key={i} className={ultimo && i > 0 ? 'turno novo' : 'turno'}>
+                {demo ? <TurnoDemo turno={t} ultimo={ultimo} tela={conversa.pedido.contexto} loja={loja} /> : <TurnoIA turno={t} ultimo={ultimo} aoRepetir={() => loja.tentarDeNovo()} />}
+              </div>
+            );
+          })}
         </div>
         {demo ? (
           <RodapeDemo loja={loja} conversa={conversa} ocupado={ocupado} />
