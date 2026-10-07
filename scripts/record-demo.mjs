@@ -100,10 +100,10 @@ await d.hold(2200);
 
 // ── 2 · Resumo executivo ────────────────────────────────────────────
 await d.click(page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Resumo executivo' }));
+await d.caption('Resumo executivo', 'A IA lê os 27 sinais que o motor detectou em Tecnologia e escreve a manchete');
 const manchete = page.locator('h1.manchete');
 await manchete.filter({ hasText: 'Tecnologia' }).waitFor();
 await page.getByText('Leitura da IA a partir de 27 sinais calculados').waitFor();
-await d.caption('Resumo executivo', 'A IA lê os 27 sinais que o motor detectou em Tecnologia e escreve a manchete');
 await d.hold(400);
 await d.pointAt(manchete, 900);
 await d.hold(2200);
@@ -111,8 +111,8 @@ await d.hold(2200);
 // ── 3 · Lente ───────────────────────────────────────────────────────
 const antes = await manchete.textContent();
 await d.click(page.getByRole('navigation', { name: 'Público' }).getByRole('link', { name: 'CEO', exact: true }));
-await page.waitForFunction((t) => document.querySelector('h1.manchete')?.textContent !== t, antes);
 await d.caption('Lentes', 'Mesmos números, outro público: para o CEO, a IA troca manchete, ordem e destaques');
+await page.waitForFunction((t) => document.querySelector('h1.manchete')?.textContent !== t, antes);
 await d.hold(900);
 const destaques = page.locator('section[aria-labelledby="t-destaques"]');
 await d.pointAt(destaques.getByText('Turnover voluntário em Tecnologia supera a meta'), 900);
@@ -120,13 +120,13 @@ await d.hold(2400);
 
 // ── 4 · Indicador ───────────────────────────────────────────────────
 await d.click(page.locator('.motivo').getByRole('link', { name: 'Turnover voluntário', exact: true }));
-await page.getByRole('heading', { level: 1, name: 'Turnover voluntário' }).waitFor();
 await d.caption('Indicador', 'A ficha do indicador: pergunta, fórmula, meta, mês e acumulado do ano');
+await page.getByRole('heading', { level: 1, name: 'Turnover voluntário' }).waitFor();
 await d.hold(1300);
 await d.choose(page.getByLabel('Diretoria'), { label: 'Empresa toda' }, 800);
+await d.caption('Indicador', 'Na empresa toda, 24 meses de evolução e a quebra por diretoria, do pior ao melhor');
 const quebra = page.getByRole('heading', { name: 'Quebra por diretoria' });
 await quebra.waitFor();
-await d.caption('Indicador', 'Na empresa toda, 24 meses de evolução e a quebra por diretoria, do pior ao melhor');
 await d.hold(500);
 await d.frame(page.getByText('Evolução mês a mês', { exact: true }));
 await d.hold(1400);
@@ -153,12 +153,12 @@ const selo = gaveta.locator('.verif').first();
 await selo.waitFor();
 await selo.getByText('17 de 17 números conferidos').waitFor();
 await d.hold(900);
-await d.caption('Guarda de números', 'Cada número do texto é conferido contra os resultados do motor: 17 de 17 batem');
 const blocos = gaveta.locator('figure.bloco');
 await rolarGaveta(blocos.nth(0));
 await d.hold(1300);
 await rolarGaveta(blocos.nth(1));
 await d.hold(1300);
+await d.caption('Guarda de números', 'Cada número do texto é conferido contra os resultados do motor: 17 de 17 batem');
 await rolarGaveta(gaveta.locator('details.calc').first(), 160);
 await d.pointAt(selo, 700);
 await d.hold(2000);
@@ -166,8 +166,8 @@ await d.hold(2000);
 // ── 6 · Como calculei ───────────────────────────────────────────────
 const calc = gaveta.locator('details.calc').first();
 await d.click(calc.locator('summary'));
-await calc.locator('li').first().waitFor();
 await d.caption('Como calculei', 'O rastro de cada conta: função, argumentos, fórmula, período efetivo e n');
+await calc.locator('li').first().waitFor();
 await rolarGaveta(calc);
 await d.pointAt(calc.locator('li').first().locator('code'), 800);
 await d.hold(2800);
@@ -194,12 +194,12 @@ const faixa = gaveta
   .filter({ has: page.locator('h4', { hasText: 'Turnover total por posição na faixa salarial do cargo' }) })
   .filter({ hasText: '57,6' })
   .filter({ hasText: '13,8' });
-await rolarGaveta(faixa);
 await d.caption('Continuação', 'Em Tecnologia, o turnover vai de 57,6% a.a. no piso da faixa salarial a 13,8% no teto');
+await rolarGaveta(faixa);
 await d.pointAt(faixa, 800);
 await d.hold(3000);
-await rolarGaveta(gaveta.locator('details.calc').nth(1), 160);
 await d.caption('Continuação', 'E de novo a guarda: 16 de 16 números da resposta conferidos contra o motor');
+await rolarGaveta(gaveta.locator('details.calc').nth(1), 160);
 await d.pointAt(selo2, 700);
 await d.hold(1800);
 
