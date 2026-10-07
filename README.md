@@ -2,7 +2,7 @@
 
 Um ensaio do data viz na era da IA: o painel mostra o que importa, a IA escolhe o destaque e investiga o porquê, e o código calcula cada número.
 
-![Painel gerencial da Verta S.A.](docs/img/gerencial.webp)
+https://github.com/user-attachments/assets/8f83d6a7-564c-4822-8c27-a32cd0f215bf
 
 ## O que tem aqui
 
@@ -14,9 +14,9 @@ São três áreas, todas com os filtros na URL (mês, diretoria, senioridade):
 
 O **deep dive com IA** abre numa gaveta à direita (no celular, numa folha de baixo para cima). O agente consulta o motor com ferramentas, narra cada consulta enquanto ela roda, escreve a análise em streaming e monta os gráficos a partir dos resultados. A barra de cima também aceita pergunta livre. Na versão publicada, o deep dive roda em [modo demonstração](#modo-demo-e-ia-ao-vivo), com respostas gravadas.
 
-| Resumo executivo | Indicador | Deep dive |
-|---|---|---|
-| ![Resumo executivo](docs/img/resumo.webp) | ![Indicador](docs/img/indicador.webp) | ![Deep dive com IA](docs/img/deep-dive.webp) |
+| Gerencial | Resumo executivo | Indicador | Deep dive |
+|---|---|---|---|
+| ![Painel gerencial da Verta S.A.](docs/img/gerencial.webp) | ![Resumo executivo](docs/img/resumo.webp) | ![Indicador](docs/img/indicador.webp) | ![Deep dive com IA](docs/img/deep-dive.webp) |
 
 ## A IA decide a apresentação, o código decide os números
 
@@ -90,6 +90,7 @@ Com `IA_AO_VIVO=1` e sem chave, as telas usam os layouts e títulos pré-gerados
 | `node --env-file=.env.local --import tsx scripts/generate-destaques.ts` | Pré-gera os títulos da IA por indicador (empresa e cada diretoria) |
 | `node --env-file=.env.local --import tsx scripts/avaliar-agente.ts` | Avaliação real do agente com 20 perguntas: ferramentas chamadas, números conferidos, latência e custo. Gasta a chave, fica fora do CI |
 | `npm run orcamento` | JS da primeira carga (gzip) por rota depois do `npm run build`; falha acima de 400 KB |
+| `npm run demo-video` | Grava o vídeo de demonstração com Playwright e ffmpeg (`scripts/record-demo.mjs`) contra um `next start` em modo demonstração: `DEMO_BASE_URL` aponta o servidor e `DEMO_DRY=1` ensaia o roteiro sem gravar. Sai em `docs/demo/` (fora do git): `demo.mp4` (1080p, < 10 MB) e `demo-linkedin.mp4` (2560×1440) |
 | `npm test` · `npm run lint` · `npx next typegen && npx tsc --noEmit` | Testes, lint e tipos (o `typegen` gera os tipos das rotas, que não são versionados) |
 
 ## Números medidos
