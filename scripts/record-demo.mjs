@@ -145,7 +145,6 @@ await gaveta.locator('.passos li').first().waitFor();
 await gaveta.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)).then(() => true));
 await d.caption('Deep dive', 'Resposta gravada do agente: ele consulta o motor com ferramentas e narra cada passo');
 await d.pointAt(gaveta.locator('.passos'), 800);
-await gaveta.getByText('Analisando…').waitFor();
 await gaveta.locator('figure.bloco').first().waitFor();
 await gaveta.locator('.resp').waitFor();
 await d.caption('Deep dive', 'Os gráficos e o texto saem dos resultados das ferramentas; a IA nunca faz a conta');
