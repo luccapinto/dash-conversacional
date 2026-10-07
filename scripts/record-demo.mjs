@@ -89,14 +89,14 @@ await d.card(null, 700);
 // ── 1 · Gerencial e filtro ──────────────────────────────────────────
 await d.caption('Gerencial', 'Os 25 indicadores do painel: mês e acumulado do ano, cada um contra a sua meta');
 await d.pointAt(page.locator('.th1 .grupo').nth(1), 900);
-await d.hold(1500);
+await d.hold(1200);
 await d.choose(page.getByLabel('Diretoria'), 'tecnologia', 800);
 await page.getByText(/25 indicadores · Tecnologia · .*12 fora \(YTD\)/).waitFor();
 await d.caption('Filtros', 'Filtro na URL e o motor recalcula tudo: em Tecnologia, 12 das 15 metas estão fora no ano');
 await d.hold(600);
 const linhaTV = page.getByRole('link', { name: 'Turnover voluntário: abrir a página do indicador' });
 await d.pointAt(linhaTV.locator('.by').first(), 900);
-await d.hold(2200);
+await d.hold(1800);
 
 // ── 2 · Resumo executivo ────────────────────────────────────────────
 await d.click(page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Resumo executivo' }));
@@ -122,19 +122,19 @@ await d.hold(2400);
 await d.click(page.locator('.motivo').getByRole('link', { name: 'Turnover voluntário', exact: true }));
 await d.caption('Indicador', 'A ficha do indicador: pergunta, fórmula, meta, mês e acumulado do ano');
 await page.getByRole('heading', { level: 1, name: 'Turnover voluntário' }).waitFor();
-await d.hold(1300);
+await d.hold(1000);
 await d.choose(page.getByLabel('Diretoria'), { label: 'Empresa toda' }, 800);
 await d.caption('Indicador', 'Na empresa toda, 24 meses de evolução e a quebra por diretoria, do pior ao melhor');
 const quebra = page.getByRole('heading', { name: 'Quebra por diretoria' });
 await quebra.waitFor();
 await d.hold(500);
 await d.frame(page.getByText('Evolução mês a mês', { exact: true }));
-await d.hold(1400);
+await d.hold(1200);
 await d.frame(quebra);
 // a primeira linha tem de ser Tecnologia, a pior no acumulado do ano
 const linhaTec = page.locator('table.tdir tbody tr').first().filter({ hasText: 'Tecnologia' });
 await d.pointAt(linhaTec, 900);
-await d.hold(2000);
+await d.hold(1800);
 
 // ── 5 · Deep dive ✦ ─────────────────────────────────────────────────
 await d.scrollTop();
@@ -151,12 +151,12 @@ await d.caption('Deep dive', 'Os gráficos e o texto saem dos resultados das fer
 const selo = gaveta.locator('.verif').first();
 await selo.waitFor();
 await selo.getByText('17 de 17 números conferidos').waitFor();
-await d.hold(900);
+await d.hold(600);
 const blocos = gaveta.locator('figure.bloco');
 await rolarGaveta(blocos.nth(0));
-await d.hold(1300);
+await d.hold(1100);
 await rolarGaveta(blocos.nth(1));
-await d.hold(1300);
+await d.hold(1100);
 await d.caption('Guarda de números', 'Cada número do texto é conferido contra os resultados do motor: 17 de 17 batem');
 await rolarGaveta(gaveta.locator('details.calc').first(), 160);
 await d.pointAt(selo, 700);
@@ -186,7 +186,7 @@ await d.pointAt(gaveta.locator('.passos').nth(1), 800);
 const selo2 = gaveta.locator('.verif').nth(1);
 await selo2.waitFor();
 await selo2.getByText('16 de 16 números conferidos').waitFor();
-await d.hold(900);
+await d.hold(600);
 // os dois números da legenda têm de estar no gráfico
 const faixa = gaveta
   .locator('figure.bloco')
@@ -196,7 +196,7 @@ const faixa = gaveta
 await d.caption('Continuação', 'Em Tecnologia, o turnover vai de 57,6% a.a. no piso da faixa salarial a 13,8% no teto');
 await rolarGaveta(faixa);
 await d.pointAt(faixa, 800);
-await d.hold(3000);
+await d.hold(2600);
 await d.caption('Continuação', 'E de novo a guarda: 16 de 16 números da resposta conferidos contra o motor');
 await rolarGaveta(gaveta.locator('details.calc').nth(1), 160);
 await d.pointAt(selo2, 700);
