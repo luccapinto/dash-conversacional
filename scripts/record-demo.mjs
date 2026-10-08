@@ -206,7 +206,7 @@ await d.hold(1800);
 await d.caption('', '');
 await d.card(
   `<h1>Dashboard Conversacional</h1><p>Next.js 16 · React 19 · TypeScript · gráficos em SVG próprio · DeepSeek na IA ao vivo (opcional)</p>` +
-    `<small>github.com/luccapinto/dash-conversacional<br>demo ao vivo: dash-conversacional.vercel.app</small>`,
+    `<small>github.com/luccapinto/dash-conversacional<br>demo ao vivo: dash-conversacional.luccabuilds.com</small>`,
   // o último quadro dura até o screencast parar, uns 2 s além da pausa: ~4,5 s de encerramento no vídeo
   2500,
 );

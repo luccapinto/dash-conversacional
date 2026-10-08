@@ -135,7 +135,7 @@ export function provedoresDoAmbiente(env: Record<string, string | undefined> = p
       modelo: env.OPENROUTER_MODEL || 'deepseek/deepseek-v4.1-flash',
       chave: env.OPENROUTER_API_KEY,
       extras: { reasoning: { enabled: false } },
-      cabecalhos: { 'HTTP-Referer': env.NEXT_PUBLIC_APP_URL || 'https://dash-conversacional.vercel.app', 'X-Title': 'Verta People Analytics' },
+      cabecalhos: { 'HTTP-Referer': env.NEXT_PUBLIC_APP_URL || 'https://dash-conversacional.luccabuilds.com', 'X-Title': 'Verta People Analytics' },
     });
   }
   return lista;
