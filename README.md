@@ -2,6 +2,8 @@
 
 Um ensaio do data viz na era da IA: o painel mostra o que importa, a IA escolhe o destaque e investiga o porquê, e o código calcula cada número.
 
+**Demo ao vivo:** https://dash-conversacional.luccabuilds.com
+
 https://github.com/user-attachments/assets/8f83d6a7-564c-4822-8c27-a32cd0f215bf
 
 ## O que tem aqui
